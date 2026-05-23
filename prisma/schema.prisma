@@ -1,0 +1,294 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum SystemRole {
+  PLATFORM_ADMIN
+  USER
+}
+
+enum OrgRole {
+  ADMIN
+  MEMBER
+}
+
+enum SprintStatus {
+  PLANNING
+  ACTIVE
+  COMPLETED
+}
+
+enum TaskType {
+  STORY
+  TASK
+  BUG
+}
+
+model SystemConfig {
+  id              String   @id @default(uuid())
+  smtpHost        String?
+  smtpPort        Int?
+  smtpUser        String?
+  smtpPass        String?
+  smtpFrom        String?
+  platformName    String   @default("Zeta TaskingPro")
+  updatedAt       DateTime @updatedAt
+}
+
+model LicensePlan {
+  id             String   @id @default(uuid())
+  name           String   // e.g. Free, Team, Enterprise
+  price          Float
+  maxUsers       Int
+  maxOrgs        Int
+  durationDays   Int
+  description    String?
+  licenses       PlatformLicense[]
+}
+
+model PlatformLicense {
+  id             String      @id @default(uuid())
+  licenseKey     String      @unique
+  planId         String
+  plan           LicensePlan @relation(fields: [planId], references: [id])
+  organizationId String?     @unique
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  startsAt       DateTime    @default(now())
+  expiresAt      DateTime
+  isActive       Boolean     @default(true)
+}
+
+model User {
+  id             String      @id @default(uuid())
+  email          String      @unique
+  name           String
+  passwordHash   String
+  avatarUrl      String?
+  timezone       String      @default("UTC")
+  role           SystemRole  @default(USER)
+  isVerified     Boolean     @default(false)
+  otpCode        String?
+  otpExpiresAt   DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  memberships    OrganizationMember[]
+  reportedTasks  Task[]      @relation("Reporter")
+  assignedTasks  Task[]      @relation("Assignee")
+  boardAdmins    BoardAdmin[]
+  comments       Comment[]
+  notifications  Notification[]
+}
+
+model Organization {
+  id             String      @id @default(uuid())
+  name           String
+  timezone       String      @default("UTC")
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  
+  licenseId      String?     @unique
+  license        PlatformLicense?
+  members        OrganizationMember[]
+  projects       Project[]
+  invitations    Invitation[]
+}
+
+model OrganizationMember {
+  id             String       @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           OrgRole      @default(MEMBER)
+  joinedAt       DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+}
+
+model Project {
+  id             String       @id @default(uuid())
+  name           String
+  key            String       // e.g. "ZTA"
+  description    String?
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  boards         Board[]
+  tasks          Task[]
+
+  @@unique([organizationId, key])
+}
+
+model Board {
+  id             String       @id @default(uuid())
+  name           String
+  projectId      String
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  columns        BoardColumn[]
+  admins         BoardAdmin[]
+  epics          Epic[]
+  sprints        Sprint[]
+  tasks          Task[]
+}
+
+model BoardColumn {
+  id             String       @id @default(uuid())
+  name           String
+  order          Int
+  boardId        String
+  board          Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  tasks          Task[]
+}
+
+model BoardAdmin {
+  id             String       @id @default(uuid())
+  boardId        String
+  board          Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+}
+
+model Epic {
+  id             String       @id @default(uuid())
+  name           String
+  colorCode      String       // hex/hsl color
+  description    String?
+  boardId        String
+  board          Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  tasks          Task[]
+}
+
+model Sprint {
+  id             String       @id @default(uuid())
+  name           String
+  startDate      DateTime?
+  endDate        DateTime?
+  status         SprintStatus @default(PLANNING)
+  boardId        String
+  board          Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  tasks          Task[]
+}
+
+model Priority {
+  id             String       @id @default(uuid())
+  name           String       // e.g. Critical, High, Medium, Low
+  color          String       // hex/hsl
+  level          Int          // numeric order representation
+  boardId        String?      // if null, it is system default
+  createdAt      DateTime     @default(now())
+}
+
+model Task {
+  id             String       @id @default(uuid())
+  code           String       // e.g. "ZTA-1"
+  number         Int          // sequential number within project
+  title          String
+  description    String       @db.Text
+  taskType       TaskType     @default(TASK)
+  priority       String       @default("Medium") // references Name of priority
+  storyPoints    Int?
+  
+  projectId      String
+  project        Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  boardId        String
+  board          Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  columnId       String
+  column         BoardColumn  @relation(fields: [columnId], references: [id], onDelete: Restrict)
+  sprintId       String?
+  sprint         Sprint?      @relation(fields: [sprintId], references: [id], onDelete: SetNull)
+  epicId         String?
+  epic           Epic?        @relation(fields: [epicId], references: [id], onDelete: SetNull)
+  
+  reporterId     String
+  reporter       User         @relation("Reporter", fields: [reporterId], references: [id])
+  assigneeId     String?
+  assignee       User?        @relation("Assignee", fields: [assigneeId], references: [id])
+  
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  attachments    Attachment[]
+  comments       Comment[]
+  outgoingLinks  TaskLink[]   @relation("OutgoingLinks")
+  incomingLinks  TaskLink[]   @relation("IncomingLinks")
+}
+
+model Attachment {
+  id             String       @id @default(uuid())
+  fileName       String
+  fileUrl        String
+  fileType       String
+  fileSize       Int
+  taskId         String
+  task           Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+}
+
+model TaskLink {
+  id             String       @id @default(uuid())
+  sourceTaskId   String
+  sourceTask     Task         @relation("OutgoingLinks", fields: [sourceTaskId], references: [id], onDelete: Cascade)
+  targetTaskId   String
+  targetTask     Task         @relation("IncomingLinks", fields: [targetTaskId], references: [id], onDelete: Cascade)
+  type           String       // e.g. "relates_to", "blocks", "blocked_by"
+  createdAt      DateTime     @default(now())
+
+  @@unique([sourceTaskId, targetTaskId, type])
+}
+
+model Comment {
+  id             String       @id @default(uuid())
+  content        String       @db.Text
+  attachments    Json?        // List of { name, url }
+  taskId         String
+  task           Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model Invitation {
+  id             String       @id @default(uuid())
+  email          String
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  boardId        String?
+  invitedById    String
+  role           OrgRole      @default(MEMBER)
+  token          String       @unique
+  otpCode        String
+  expiresAt      DateTime
+  isAccepted     Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
+
+model Notification {
+  id             String       @id @default(uuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title          String
+  message        String
+  taskId         String?
+  isRead         Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+}
