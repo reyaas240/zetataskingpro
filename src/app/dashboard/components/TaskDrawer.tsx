@@ -56,6 +56,51 @@ export default function TaskDrawer({
   const [commentContent, setCommentContent] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
 
+  // Lightbox preview state
+  const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
+
+  // Copy success & Expand states
+  const [copySuccess, setCopySuccess] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const handleCopyUrl = async () => {
+    if (!taskId) return;
+    const taskUrl = window.location.origin + window.location.pathname + "?taskId=" + taskId;
+    
+    const copyToClipboard = (text: string) => {
+      if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+      } else {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        return new Promise<void>((resolve, resolveFailed) => {
+          document.execCommand("copy") ? resolve() : resolveFailed();
+          textArea.remove();
+        });
+      }
+    };
+
+    try {
+      await copyToClipboard(taskUrl);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy URL:", err);
+    }
+  };
+
+  const isImageFile = (att: any) => {
+    if (att.fileType?.startsWith("image/")) return true;
+    const ext = att.fileName?.split(".").pop()?.toLowerCase();
+    return ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext);
+  };
+
   useEffect(() => {
     if (taskId) {
       fetchTaskDetails();
@@ -255,9 +300,9 @@ export default function TaskDrawer({
       <div className="drawer-card" onClick={(e) => e.stopPropagation()}>
         
         {/* Drawer Header */}
-        <div className="drawer-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span className="task-code" style={{ fontSize: 14 }}>{task?.code || "Loading..."}</span>
+        <div className="drawer-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, width: "100%" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+            <span className="task-code" style={{ fontSize: 14, flexShrink: 0 }}>{task?.code || "Loading..."}</span>
             <select
               value={taskType}
               onChange={(e) => {
@@ -265,14 +310,56 @@ export default function TaskDrawer({
                 handleUpdateField("taskType", e.target.value);
               }}
               className="filter-select"
-              style={{ fontWeight: "bold" }}
+              style={{ fontWeight: "bold", flexShrink: 0 }}
             >
               <option value="TASK">📝 Task</option>
               <option value="BUG">🐛 Bug</option>
               <option value="STORY">📖 Story</option>
             </select>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleBlur}
+              style={{
+                fontSize: 16,
+                fontWeight: 700,
+                border: "1px solid transparent",
+                padding: "4px 10px",
+                borderRadius: "var(--border-radius)",
+                flex: 1,
+                minWidth: 150,
+                backgroundColor: "transparent",
+              }}
+              className="inline-edit-input"
+              placeholder="Enter task title..."
+            />
+            {/* Copy Task URL button */}
+            <button
+              type="button"
+              onClick={handleCopyUrl}
+              className="btn btn-outline"
+              style={{
+                padding: "4px 10px",
+                fontSize: 12,
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                border: "1px solid var(--border-color)",
+                borderRadius: "var(--border-radius)",
+                backgroundColor: copySuccess ? "var(--success-light)" : "var(--bg-secondary)",
+                color: copySuccess ? "var(--success)" : "var(--text-secondary)",
+                cursor: "pointer",
+                flexShrink: 0,
+                fontWeight: 600,
+                transition: "all 0.15s ease"
+              }}
+              title="Copy Task URL Link"
+            >
+              {copySuccess ? "✓ Copied!" : "🔗 Copy Link"}
+            </button>
           </div>
-          <button className="btn btn-outline" onClick={onClose}>×</button>
+          <button className="btn btn-outline" onClick={onClose} style={{ flexShrink: 0 }}>×</button>
         </div>
 
         {/* Drawer Body */}
@@ -282,34 +369,36 @@ export default function TaskDrawer({
           ) : error ? (
             <div className="alert alert-danger">{error}</div>
           ) : (
-            <div className="detail-grid">
+            <div className="detail-grid" style={{ gridTemplateColumns: isExpanded ? "1fr" : "2fr 1.1fr" }}>
               
               {/* Left Column (Main Details) */}
               <div className="detail-main">
                 
-                {/* Title */}
-                <div>
-                  <input
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    onBlur={handleTitleBlur}
-                    style={{
-                      fontSize: 22,
-                      fontWeight: 800,
-                      border: "1px solid transparent",
-                      padding: "4px 8px",
-                      borderRadius: "var(--border-radius)",
-                      width: "100%",
-                      backgroundColor: "transparent",
-                    }}
-                    className="inline-edit-input"
-                  />
-                </div>
-
                 {/* Description */}
                 <div>
-                  <span className="detail-label">Description</span>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                    <span className="detail-label" style={{ margin: 0 }}>Description</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="btn btn-outline"
+                      style={{
+                        padding: "3px 8px",
+                        fontSize: 11,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                        border: "1px solid var(--border-color)",
+                        borderRadius: "var(--border-radius-sm)",
+                        cursor: "pointer",
+                        color: "var(--primary)",
+                        fontWeight: 600,
+                        backgroundColor: "var(--bg-secondary)"
+                      }}
+                    >
+                      {isExpanded ? "⤨ Collapse Sidebar" : "⤢ Expand Editor"}
+                    </button>
+                  </div>
                   <TipTapEditor
                     content={description}
                     onChange={(html) => setDescription(html)}
@@ -337,25 +426,65 @@ export default function TaskDrawer({
                   </div>
 
                   <div className="attachment-list">
-                    {task?.attachments?.map((att: any) => (
-                      <div key={att.id} className="attachment-item">
-                        <div>
-                          <strong>{att.fileName}</strong>{" "}
-                          <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
-                            ({(att.fileSize / 1024).toFixed(1)} KB)
-                          </span>
+                    {task?.attachments?.map((att: any) => {
+                      const isImg = isImageFile(att);
+                      return (
+                        <div key={att.id} className="attachment-item" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flex: 1 }}>
+                            {isImg && (
+                              <div
+                                onClick={() => setPreviewImage({ url: att.fileUrl, name: att.fileName })}
+                                style={{
+                                  width: 50,
+                                  height: 38,
+                                  borderRadius: "var(--border-radius-sm)",
+                                  backgroundColor: "var(--bg-tertiary)",
+                                  overflow: "hidden",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  cursor: "pointer",
+                                  border: "1px solid var(--border-color)",
+                                  flexShrink: 0
+                                }}
+                              >
+                                <img
+                                  src={att.fileUrl}
+                                  alt={att.fileName}
+                                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                                />
+                              </div>
+                            )}
+                            <div style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              <strong style={{ display: "block", textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>{att.fileName}</strong>
+                              <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>
+                                ({(att.fileSize / 1024).toFixed(1)} KB)
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                            {isImg && (
+                              <button
+                                type="button"
+                                onClick={() => setPreviewImage({ url: att.fileUrl, name: att.fileName })}
+                                className="btn btn-outline"
+                                style={{ padding: "4px 8px", fontSize: 11 }}
+                              >
+                                View
+                              </button>
+                            )}
+                            <a
+                              href={att.fileUrl}
+                              download={att.fileName}
+                              className="btn btn-outline"
+                              style={{ padding: "4px 8px", fontSize: 11 }}
+                            >
+                              Download
+                            </a>
+                          </div>
                         </div>
-                        <a
-                          href={att.fileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="btn btn-outline"
-                          style={{ padding: "4px 8px", fontSize: 11 }}
-                        >
-                          Download
-                        </a>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -471,7 +600,8 @@ export default function TaskDrawer({
               </div>
 
               {/* Right Column (Sidebar Details) */}
-              <div className="detail-sidebar">
+              {!isExpanded && (
+                <div className="detail-sidebar">
                 
                 {/* Column/Status */}
                 <div>
@@ -622,12 +752,88 @@ export default function TaskDrawer({
                       🗑️ Delete Task
                     </button>
                 </div>
-
               </div>
+              )}
 
             </div>
           )}
         </div>
+
+        {/* IMAGE LIGHTBOX PREVIEW MODAL */}
+        {previewImage && (
+          <div
+            className="modal-overlay"
+            style={{ zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }}
+            onClick={() => setPreviewImage(null)}
+          >
+            <div
+              className="modal-card"
+              style={{
+                maxWidth: "90vw",
+                width: "auto",
+                maxHeight: "90vh",
+                padding: 20,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                position: "relative",
+                boxShadow: "var(--shadow-xl)",
+                backgroundColor: "var(--bg-secondary)"
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%", marginBottom: 12, gap: 16 }}>
+                <h4 style={{ margin: 0, textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap", fontSize: 16, fontWeight: 700 }}>
+                  👁️ {previewImage.name}
+                </h4>
+                <button
+                  className="modal-close"
+                  onClick={() => setPreviewImage(null)}
+                  style={{ fontSize: 24, cursor: "pointer", background: "none", border: "none", padding: 0, color: "var(--text-secondary)" }}
+                >
+                  ×
+                </button>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  backgroundColor: "var(--bg-primary)",
+                  borderRadius: "var(--border-radius)",
+                  padding: 10,
+                  overflow: "auto",
+                  maxHeight: "70vh",
+                  border: "1px solid var(--border-color)",
+                  width: "100%"
+                }}
+              >
+                <img
+                  src={previewImage.url}
+                  alt={previewImage.name}
+                  style={{ maxWidth: "100%", maxHeight: "65vh", objectFit: "contain", borderRadius: "var(--border-radius-sm)" }}
+                />
+              </div>
+              <div style={{ marginTop: 16, display: "flex", gap: 12, justifyContent: "flex-end", width: "100%" }}>
+                <a
+                  href={previewImage.url}
+                  download={previewImage.name}
+                  className="btn btn-primary"
+                  style={{ padding: "6px 16px", fontSize: 13 }}
+                >
+                  Download File
+                </a>
+                <button
+                  className="btn btn-outline"
+                  onClick={() => setPreviewImage(null)}
+                  style={{ padding: "6px 16px", fontSize: 13 }}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

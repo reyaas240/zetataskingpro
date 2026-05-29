@@ -7,6 +7,7 @@ import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import { Node, mergeAttributes } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
+import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 
 // Custom video extension to handle video embeds in rich text
 const VideoExtension = Node.create({
@@ -42,6 +43,286 @@ const VideoExtension = Node.create({
   },
 });
 
+// React component for Image Node View displaying resize handles when selected
+const ImageNodeView = ({ node, updateAttributes, selected }: any) => {
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [width, setWidth] = useState(node.attrs.width || "100%");
+  const [height, setHeight] = useState(node.attrs.height || "auto");
+
+  useEffect(() => {
+    setWidth(node.attrs.width || "100%");
+    setHeight(node.attrs.height || "auto");
+  }, [node.attrs.width, node.attrs.height]);
+
+  const alignment = node.attrs.alignment || "center";
+
+  let display = "block";
+  let margin = "8px auto";
+  let float = "none";
+
+  if (alignment === "left") {
+    margin = "8px 12px 8px 0";
+    float = "left";
+    display = "inline-block";
+  } else if (alignment === "right") {
+    margin = "8px 0 8px 12px";
+    float = "right";
+    display = "inline-block";
+  }
+
+  // 1. Resize Width Only (Right Handle)
+  const handleWidthResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const parentWidth = containerRef.current?.parentElement?.offsetWidth || 1;
+    const rect = imgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const startX = rect.left;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const currentWidthPx = moveEvent.clientX - startX;
+      let newPct = Math.max(10, Math.min(100, Math.round((currentWidthPx / parentWidth) * 100)));
+      setWidth(`${newPct}%`);
+    };
+
+    const handleMouseUp = (moveEvent: MouseEvent) => {
+      const currentWidthPx = moveEvent.clientX - startX;
+      let newPct = Math.max(10, Math.min(100, Math.round((currentWidthPx / parentWidth) * 100)));
+      updateAttributes({ width: `${newPct}%` });
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  // 2. Resize Height Only (Bottom Handle)
+  const handleHeightResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = imgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const startY = rect.top;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const currentHeightPx = moveEvent.clientY - startY;
+      let newHeight = Math.max(50, Math.round(currentHeightPx));
+      setHeight(`${newHeight}px`);
+    };
+
+    const handleMouseUp = (moveEvent: MouseEvent) => {
+      const currentHeightPx = moveEvent.clientY - startY;
+      let newHeight = Math.max(50, Math.round(currentHeightPx));
+      updateAttributes({ height: `${newHeight}px` });
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  // 3. Resize Both (Bottom-Right Corner Handle)
+  const handleCornerResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const parentWidth = containerRef.current?.parentElement?.offsetWidth || 1;
+    const rect = imgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const startX = rect.left;
+    const startY = rect.top;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const currentWidthPx = moveEvent.clientX - startX;
+      const currentHeightPx = moveEvent.clientY - startY;
+      let newPct = Math.max(10, Math.min(100, Math.round((currentWidthPx / parentWidth) * 100)));
+      let newHeight = Math.max(50, Math.round(currentHeightPx));
+      setWidth(`${newPct}%`);
+      setHeight(`${newHeight}px`);
+    };
+
+    const handleMouseUp = (moveEvent: MouseEvent) => {
+      const currentWidthPx = moveEvent.clientX - startX;
+      const currentHeightPx = moveEvent.clientY - startY;
+      let newPct = Math.max(10, Math.min(100, Math.round((currentWidthPx / parentWidth) * 100)));
+      let newHeight = Math.max(50, Math.round(currentHeightPx));
+      updateAttributes({ width: `${newPct}%`, height: `${newHeight}px` });
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
+  return (
+    <NodeViewWrapper
+      ref={containerRef}
+      style={{
+        display,
+        margin,
+        float,
+        width,
+        height,
+        maxWidth: "100%",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          display: "inline-block",
+          width: "100%",
+          height: "100%",
+          outline: selected ? "2px solid var(--primary)" : "none",
+          borderRadius: 8,
+          overflow: "visible",
+          transition: "outline 0.15s ease",
+        }}
+      >
+        <img
+          ref={imgRef}
+          src={node.attrs.src}
+          alt={node.attrs.alt}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "fill",
+            display: "block",
+            borderRadius: 8,
+            cursor: "pointer",
+          }}
+        />
+        {selected && (
+          <>
+            {/* Horizontal Resize Handle (Middle Right) */}
+            <div
+              style={{
+                position: "absolute",
+                top: "50%",
+                right: -4,
+                transform: "translateY(-50%)",
+                width: 8,
+                height: 16,
+                backgroundColor: "var(--primary)",
+                border: "1px solid white",
+                borderRadius: 4,
+                cursor: "ew-resize",
+                zIndex: 100,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+              }}
+              onMouseDown={handleWidthResize}
+              title="Resize Width Only"
+            />
+
+            {/* Vertical Resize Handle (Middle Bottom) */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: -4,
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: 16,
+                height: 8,
+                backgroundColor: "var(--primary)",
+                border: "1px solid white",
+                borderRadius: 4,
+                cursor: "ns-resize",
+                zIndex: 100,
+                boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+              }}
+              onMouseDown={handleHeightResize}
+              title="Resize Height Only"
+            />
+
+            {/* Proportional Resize Handle (Bottom Right Corner) */}
+            <div
+              style={{
+                position: "absolute",
+                bottom: -5,
+                right: -5,
+                width: 12,
+                height: 12,
+                backgroundColor: "var(--primary)",
+                border: "2px solid white",
+                borderRadius: "50%",
+                cursor: "se-resize",
+                zIndex: 100,
+                boxShadow: "0 2px 4px rgba(0,0,0,0.3)",
+              }}
+              onMouseDown={handleCornerResize}
+              title="Resize Width & Height"
+            />
+          </>
+        )}
+      </div>
+    </NodeViewWrapper>
+  );
+};
+
+// Custom Image extension to support resizing and alignment attributes
+const CustomImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: "100%",
+        parseHTML: (element) => element.style.width || element.getAttribute("width") || "100%",
+      },
+      height: {
+        default: "auto",
+        parseHTML: (element) => element.style.height || element.getAttribute("height") || "auto",
+      },
+      alignment: {
+        default: "center",
+        parseHTML: (element) => {
+          const float = element.style.float;
+          if (float === "left") return "left";
+          if (float === "right") return "right";
+          return element.getAttribute("data-alignment") || "center";
+        },
+      },
+    };
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const { alignment, width, height, ...rest } = HTMLAttributes;
+
+    let display = "block";
+    let margin = "8px auto";
+    let float = "none";
+
+    if (alignment === "left") {
+      margin = "8px 12px 8px 0";
+      float = "left";
+      display = "inline-block";
+    } else if (alignment === "right") {
+      margin = "8px 0 8px 12px";
+      float = "right";
+      display = "inline-block";
+    }
+
+    const style = `display: ${display}; margin: ${margin}; float: ${float}; width: ${width || "100%"}; height: ${height || "auto"}; max-width: 100%; cursor: pointer; transition: outline 0.15s;`;
+
+    return [
+      "img",
+      mergeAttributes(rest, {
+        "data-alignment": alignment,
+        style,
+      }),
+    ];
+  },
+
+  addNodeView() {
+    return ReactNodeViewRenderer(ImageNodeView);
+  },
+});
+
 interface TipTapEditorProps {
   content: string;
   onChange: (html: string) => void;
@@ -62,7 +343,7 @@ export default function TipTapEditor({
   const editor = useEditor({
     extensions: [
       StarterKit,
-      Image.configure({
+      CustomImage.configure({
         HTMLAttributes: {
           style: "max-width: 100%; border-radius: 8px; margin: 8px 0;",
         },
@@ -317,6 +598,74 @@ export default function TipTapEditor({
             title="Redo (⌘⇧Z)"
           >
             Redo ↪
+          </button>
+        </div>
+      )}
+
+      {editable && editor.isActive("image") && (
+        <div className="tiptap-image-toolbar" style={{ display: "flex", gap: 8, alignItems: "center", backgroundColor: "var(--bg-tertiary)", padding: "8px 16px", borderBottom: "1px solid var(--border-color)", flexWrap: "wrap" }}>
+          <span style={{ fontSize: 12, fontWeight: "bold", color: "var(--primary)", display: "flex", alignItems: "center", gap: 4 }}>
+            🖼️ Image Alignment:
+          </span>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().updateAttributes("image", { alignment: "left" }).run()}
+            className={`tiptap-btn ${editor.getAttributes("image").alignment === "left" ? "is-active" : ""}`}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+          >
+            Left
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().updateAttributes("image", { alignment: "center" }).run()}
+            className={`tiptap-btn ${editor.getAttributes("image").alignment === "center" || !editor.getAttributes("image").alignment ? "is-active" : ""}`}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+          >
+            Center
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().updateAttributes("image", { alignment: "right" }).run()}
+            className={`tiptap-btn ${editor.getAttributes("image").alignment === "right" ? "is-active" : ""}`}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+          >
+            Right
+          </button>
+
+          <span style={{ borderLeft: "1px solid var(--border-color)", height: 16, margin: "0 6px" }}></span>
+
+          <span style={{ fontSize: 12, fontWeight: "bold", color: "var(--primary)" }}>📏 Resize:</span>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().updateAttributes("image", { width: "25%" }).run()}
+            className={`tiptap-btn ${editor.getAttributes("image").width === "25%" ? "is-active" : ""}`}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+          >
+            25%
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().updateAttributes("image", { width: "50%" }).run()}
+            className={`tiptap-btn ${editor.getAttributes("image").width === "50%" ? "is-active" : ""}`}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+          >
+            50%
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().updateAttributes("image", { width: "75%" }).run()}
+            className={`tiptap-btn ${editor.getAttributes("image").width === "75%" ? "is-active" : ""}`}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+          >
+            75%
+          </button>
+          <button
+            type="button"
+            onClick={() => editor.chain().focus().updateAttributes("image", { width: "100%" }).run()}
+            className={`tiptap-btn ${editor.getAttributes("image").width === "100%" || !editor.getAttributes("image").width ? "is-active" : ""}`}
+            style={{ padding: "4px 10px", fontSize: 12 }}
+          >
+            100%
           </button>
         </div>
       )}
