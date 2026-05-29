@@ -24,6 +24,10 @@ export default function PlatformAdmin() {
   const [platformName, setPlatformName] = useState("");
   const [smtpSuccess, setSmtpSuccess] = useState("");
   const [smtpError, setSmtpError] = useState("");
+  const [testRecipient, setTestRecipient] = useState("reyaa@techbsl.com");
+  const [testLoading, setTestLoading] = useState(false);
+  const [testSuccess, setTestSuccess] = useState("");
+  const [testError, setTestError] = useState("");
 
   // Licenses states
   const [licenses, setLicenses] = useState<any[]>([]);
@@ -184,6 +188,43 @@ export default function PlatformAdmin() {
       }
     } catch (e) {
       setSmtpError("Network error.");
+    }
+  };
+
+  const handleTestSmtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTestSuccess("");
+    setTestError("");
+    setTestLoading(true);
+
+    try {
+      const res = await fetch("/api/admin/config/test-smtp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          smtpHost,
+          smtpPort,
+          smtpUser,
+          smtpPass,
+          smtpFrom,
+          testRecipient,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        if (data.success) {
+          setTestSuccess("SMTP verification and test email delivery succeeded!");
+        } else {
+          setTestError(`[${data.stage}] Fail details: ${data.error}`);
+        }
+      } else {
+        setTestError(data.error || "Failed to call verification server.");
+      }
+    } catch (e) {
+      setTestError("Network error testing SMTP.");
+    } finally {
+      setTestLoading(false);
     }
   };
 
@@ -508,81 +549,110 @@ export default function PlatformAdmin() {
 
           {/* TAB 3: SMTP configurations */}
           {activeTab === "smtp" && (
-            <div className="admin-form-box">
-              <h3 className="admin-form-title">SMTP Mailer Settings</h3>
-              
-              {smtpSuccess && <div className="alert alert-success">{smtpSuccess}</div>}
-              {smtpError && <div className="alert alert-danger">{smtpError}</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 32, alignItems: "start" }}>
+              {/* Left: Configuration Form */}
+              <div className="admin-form-box">
+                <h3 className="admin-form-title">SMTP Mailer Settings</h3>
+                
+                {smtpSuccess && <div className="alert alert-success">{smtpSuccess}</div>}
+                {smtpError && <div className="alert alert-danger">{smtpError}</div>}
 
-              <form onSubmit={handleSaveSmtp} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                <div className="form-group">
-                  <label className="form-label">Platform Name</label>
-                  <input
-                    type="text"
-                    value={platformName}
-                    onChange={(e) => setPlatformName(e.target.value)}
-                    required
-                    placeholder="Zeta TaskingPro"
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">SMTP Server Host</label>
-                  <input
-                    type="text"
-                    value={smtpHost}
-                    onChange={(e) => setSmtpHost(e.target.value)}
-                    placeholder="mail.example.com"
-                  />
-                  <span className="form-helper">Host address of your outgoing mail server.</span>
-                </div>
+                <form onSubmit={handleSaveSmtp} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div className="form-group">
+                    <label className="form-label">Platform Name</label>
+                    <input
+                      type="text"
+                      value={platformName}
+                      onChange={(e) => setPlatformName(e.target.value)}
+                      required
+                      placeholder="Zeta TaskingPro"
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">SMTP Server Host</label>
+                    <input
+                      type="text"
+                      value={smtpHost}
+                      onChange={(e) => setSmtpHost(e.target.value)}
+                      placeholder="mail.example.com"
+                    />
+                    <span className="form-helper">Host address of your outgoing mail server.</span>
+                  </div>
 
-                <div className="form-group">
-                  <label className="form-label">SMTP Server Port</label>
-                  <input
-                    type="number"
-                    value={smtpPort}
-                    onChange={(e) => setSmtpPort(parseInt(e.target.value) || 587)}
-                    placeholder="587"
-                  />
-                  <span className="form-helper">Common ports: 587 (TLS), 465 (SSL), 25 (unencrypted)</span>
-                </div>
+                  <div className="form-group">
+                    <label className="form-label">SMTP Server Port</label>
+                    <input
+                      type="number"
+                      value={smtpPort}
+                      onChange={(e) => setSmtpPort(parseInt(e.target.value) || 587)}
+                      placeholder="587"
+                    />
+                    <span className="form-helper">Common ports: 587 (TLS), 465 (SSL), 25 (unencrypted)</span>
+                  </div>
 
-                <div className="form-group">
-                  <label className="form-label">SMTP Username</label>
-                  <input
-                    type="text"
-                    value={smtpUser}
-                    onChange={(e) => setSmtpUser(e.target.value)}
-                    placeholder="smtp-user@example.com"
-                  />
-                </div>
+                  <div className="form-group">
+                    <label className="form-label">SMTP Username</label>
+                    <input
+                      type="text"
+                      value={smtpUser}
+                      onChange={(e) => setSmtpUser(e.target.value)}
+                      placeholder="smtp-user@example.com"
+                    />
+                  </div>
 
-                <div className="form-group">
-                  <label className="form-label">SMTP Password</label>
-                  <input
-                    type="password"
-                    value={smtpPass}
-                    onChange={(e) => setSmtpPass(e.target.value)}
-                    placeholder="••••••••"
-                  />
-                  <span className="form-helper">Leave empty if password is unchanged or not required.</span>
-                </div>
+                  <div className="form-group">
+                    <label className="form-label">SMTP Password</label>
+                    <input
+                      type="password"
+                      value={smtpPass}
+                      onChange={(e) => setSmtpPass(e.target.value)}
+                      placeholder="••••••••"
+                    />
+                    <span className="form-helper">Leave empty if password is unchanged or not required.</span>
+                  </div>
 
-                <div className="form-group">
-                  <label className="form-label">Sender Address (From)</label>
-                  <input
-                    type="email"
-                    value={smtpFrom}
-                    onChange={(e) => setSmtpFrom(e.target.value)}
-                    placeholder="no-reply@zetatasking.pro"
-                  />
-                  <span className="form-helper">The email address users will see in their inbox.</span>
-                </div>
+                  <div className="form-group">
+                    <label className="form-label">Sender Address (From)</label>
+                    <input
+                      type="email"
+                      value={smtpFrom}
+                      onChange={(e) => setSmtpFrom(e.target.value)}
+                      placeholder="no-reply@zetatasking.pro"
+                    />
+                    <span className="form-helper">The email address users will see in their inbox.</span>
+                  </div>
 
-                <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: 8 }}>
-                  Save Configuration
-                </button>
-              </form>
+                  <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: 8 }}>
+                    Save Configuration
+                  </button>
+                </form>
+              </div>
+
+              {/* Right: Test Delivery Panel */}
+              <div className="admin-form-box">
+                <h3 className="admin-form-title">Test Mail Delivery</h3>
+                
+                {testSuccess && <div className="alert alert-success">{testSuccess}</div>}
+                {testError && <div className="alert alert-danger">{testError}</div>}
+
+                <form onSubmit={handleTestSmtp} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div className="form-group">
+                    <label className="form-label">Recipient Email Address</label>
+                    <input
+                      type="email"
+                      value={testRecipient}
+                      onChange={(e) => setTestRecipient(e.target.value)}
+                      required
+                      placeholder="reyaa@techbsl.com"
+                    />
+                    <span className="form-helper">Sends a test email to verify routing and connection.</span>
+                  </div>
+
+                  <button type="submit" className="btn btn-outline" style={{ width: "100%" }} disabled={testLoading}>
+                    {testLoading ? "Sending Test Mail..." : "Send Test Mail"}
+                  </button>
+                </form>
+              </div>
             </div>
           )}
         </section>
