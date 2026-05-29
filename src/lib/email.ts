@@ -22,6 +22,9 @@ export async function getTransporter() {
             pass: config.smtpPass || "",
           }
         : undefined,
+      tls: {
+        rejectUnauthorized: false, // Bypasses self-signed certificate and custom SSL chain validation issues
+      },
     });
     return { transporter, from: config.smtpFrom || "no-reply@zetatasking.pro" };
   } catch (error) {
