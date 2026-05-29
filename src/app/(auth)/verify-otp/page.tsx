@@ -1,11 +1,19 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import "../auth.css";
 
 export default function VerifyOtpPage() {
+  return (
+    <Suspense fallback={<div className="auth-wrapper"><div className="auth-left"><div className="auth-card"><p>Loading...</p></div></div></div>}>
+      <VerifyOtpContent />
+    </Suspense>
+  );
+}
+
+function VerifyOtpContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const emailParam = searchParams.get("email") || "";
