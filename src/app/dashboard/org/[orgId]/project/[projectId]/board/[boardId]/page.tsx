@@ -776,8 +776,7 @@ export default function BoardWorkspacePage() {
           </div>
         </div>
       )}
-
-      {/* 4. COLUMNS SETTINGS TAB */}
+{/* 4. COLUMNS SETTINGS TAB */}
       {activeTab === "settings" && (
         <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 32, alignItems: "start" }}>
           {/* Columns Table */}
@@ -793,19 +792,107 @@ export default function BoardWorkspacePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {columns.map((col) => (
+                  {columns.map((col, idx) => (
                     <tr key={col.id}>
                       <td>
-                        <strong>{col.name}</strong>
+                        {/* Inline edit field */}
+                        {col._editing ? (
+                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <input
+                              type="text"
+                              defaultValue={col.name}
+                              onChange={(e) => (col._newName = e.target.value)}
+                              style={{ width: "120px" }}
+                            />
+                            <button
+                              onClick={async () => {
+                                const newName = col._newName?.trim() || col.name;
+                                if (newName !== col.name) {
+                                  const res = await fetch("/api/boards/columns", {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ columnId: col.id, name: newName }),
+                                  });
+                                  if (res.ok) {
+                                    loadBoardWorkspace();
+                                  } else {
+                                    const data = await res.json();
+                                    alert(data.error || "Failed to rename column");
+                                  }
+                                }
+                                col._editing = false;
+                                // Force re-render
+                                setColumns([...columns]);
+                              }}
+                              className="btn btn-primary"
+                              style={{ fontSize: 12, padding: "2px 6px" }}
+                            >Save</button>
+                            <button
+                              onClick={() => {
+                                col._editing = false;
+                                setColumns([...columns]);
+                              }}
+                              className="btn btn-outline"
+                              style={{ fontSize: 12, padding: "2px 6px" }}
+                            >Cancel</button>
+                          </div>
+                        ) : (
+                          <strong>{col.name}</strong>
+                        )}
                       </td>
                       <td>Order {col.order}</td>
-                      <td>
+                      <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        {/* Edit toggle */}
+                        <button
+                          onClick={() => {
+                            col._editing = true;
+                            setColumns([...columns]);
+                          }}
+                          style={{ background: "none", color: "var(--text-secondary)", fontSize: 12 }}
+                        >✎</button>
+                        {/* Move Up */}
+                        <button
+                          onClick={async () => {
+                            if (idx === 0) return;
+                            const newColumns = [...columns];
+                            const above = newColumns[idx - 1];
+                            // swap orders
+                            const temp = col.order;
+                            col.order = above.order;
+                            above.order = temp;
+                            // send batch reorder
+                            await fetch("/api/boards/columns", {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ columns: newColumns.map(c => ({ id: c.id, order: c.order })) }),
+                            });
+                            loadBoardWorkspace();
+                          }}
+                          style={{ background: "none", color: "var(--text-secondary)", fontSize: 12 }}
+                        >↑</button>
+                        {/* Move Down */}
+                        <button
+                          onClick={async () => {
+                            if (idx === columns.length - 1) return;
+                            const newColumns = [...columns];
+                            const below = newColumns[idx + 1];
+                            const temp = col.order;
+                            col.order = below.order;
+                            below.order = temp;
+                            await fetch("/api/boards/columns", {
+                              method: "PUT",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ columns: newColumns.map(c => ({ id: c.id, order: c.order })) }),
+                            });
+                            loadBoardWorkspace();
+                          }}
+                          style={{ background: "none", color: "var(--text-secondary)", fontSize: 12 }}
+                        >↓</button>
+                        {/* Delete */}
                         <button
                           onClick={() => handleDeleteColumn(col.id)}
                           style={{ background: "none", color: "var(--danger)", fontSize: 12 }}
-                        >
-                          Delete
-                        </button>
+                        >Delete</button>
                       </td>
                     </tr>
                   ))}
