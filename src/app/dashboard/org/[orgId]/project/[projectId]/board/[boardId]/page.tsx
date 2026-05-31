@@ -730,20 +730,87 @@ export default function BoardWorkspacePage() {
                     }}
                   >
                     <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <span style={{ width: 14, height: 14, borderRadius: "50%", backgroundColor: epic.colorCode }}></span>
-                      <div>
-                        <strong style={{ fontSize: 14 }}>{epic.name}</strong>
-                        {epic.description && (
-                          <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{epic.description}</p>
-                        )}
-                      </div>
+                      {epic._editing ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <input
+                            type="text"
+                            defaultValue={epic.name}
+                            onChange={(e) => (epic._newName = e.target.value)}
+                            style={{ width: "150px" }}
+                          />
+                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <input
+                              type="color"
+                              defaultValue={epic.colorCode}
+                              onChange={(e) => (epic._newColor = e.target.value)}
+                            />
+                            <input
+                              type="text"
+                              defaultValue={epic.colorCode}
+                              onChange={(e) => (epic._newColor = e.target.value)}
+                              style={{ width: "70px" }}
+                            />
+                          </div>
+                          <textarea
+                            defaultValue={epic.description || ""}
+                            onChange={(e) => (epic._newDesc = e.target.value)}
+                            rows={2}
+                            style={{ width: "200px" }}
+                          />
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              onClick={async () => {
+                                const updated = await fetch("/api/boards/epics", {
+                                  method: "PUT",
+                                  headers: { "Content-Type": "application/json" },
+                                  body: JSON.stringify({
+                                    epicId: epic.id,
+                                    name: epic._newName?.trim() || epic.name,
+                                    colorCode: epic._newColor || epic.colorCode,
+                                    description: epic._newDesc ?? epic.description,
+                                  }),
+                                });
+                                if (updated.ok) {
+                                  loadBoardWorkspace();
+                                } else {
+                                  const data = await updated.json();
+                                  alert(data.error || "Failed to update epic");
+                                }
+                                epic._editing = false;
+                                setEpics([...epics]);
+                              }}
+                              className="btn btn-primary"
+                              style={{ fontSize: 12, padding: "2px 6px" }}
+                            >Save</button>
+                            <button
+                              onClick={() => { epic._editing = false; setEpics([...epics]); }}
+                              className="btn btn-outline"
+                              style={{ fontSize: 12, padding: "2px 6px" }}
+                            >Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <span style={{ width: 14, height: 14, borderRadius: "50%", backgroundColor: epic.colorCode }}></span>
+                          <div>
+                            <strong style={{ fontSize: 14 }}>{epic.name}</strong>
+                            {epic.description && (
+                              <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{epic.description}</p>
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <button
-                      onClick={() => handleDeleteEpic(epic.id)}
-                      style={{ background: "none", color: "var(--danger)", fontSize: 12 }}
-                    >
-                      Delete
-                    </button>
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <button
+                        onClick={() => { epic._editing = true; setEpics([...epics]); }}
+                        style={{ background: "none", color: "var(--text-secondary)", fontSize: 12 }}
+                      >✎</button>
+                      <button
+                        onClick={() => handleDeleteEpic(epic.id)}
+                        style={{ background: "none", color: "var(--danger)", fontSize: 12 }}
+                      >Delete</button>
+                    </div>
                   </div>
                 ))
               )}
