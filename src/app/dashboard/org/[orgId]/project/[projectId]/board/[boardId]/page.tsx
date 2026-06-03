@@ -65,6 +65,13 @@ export default function BoardWorkspacePage() {
   const [newColName, setNewColName] = useState("");
   const [colLoading, setColLoading] = useState(false);
 
+  const [boardTitle, setBoardTitle] = useState("");
+  const [isRenamingBoard, setIsRenamingBoard] = useState(false);
+  const [isDeletingBoard, setIsDeletingBoard] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [confirmDeleteTitle, setConfirmDeleteTitle] = useState("");
+
+
   useEffect(() => {
     if (boardId) {
       loadBoardWorkspace();
@@ -90,6 +97,7 @@ export default function BoardWorkspacePage() {
         const boardData = await boardRes.json();
         const activeBoard = boardData.boards.find((b: any) => b.id === boardId);
         setBoard(activeBoard);
+        setBoardTitle(activeBoard?.name || "");
         setColumns(activeBoard?.columns || []);
         if (activeBoard?.columns.length > 0) {
           setTaskColumnId(activeBoard.columns[0].id);
@@ -151,6 +159,57 @@ export default function BoardWorkspacePage() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleRenameBoard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!boardTitle.trim()) return;
+    setIsRenamingBoard(true);
+    try {
+      const res = await fetch("/api/boards", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ boardId, name: boardTitle.trim() }),
+      });
+      if (res.ok) {
+        alert("Board renamed successfully");
+        loadBoardWorkspace();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to rename board");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to rename board");
+    } finally {
+      setIsRenamingBoard(false);
+    }
+  };
+
+  const handleDeleteBoard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (confirmDeleteTitle !== board?.name) {
+      alert("Entered name does not match board name.");
+      return;
+    }
+    setIsDeletingBoard(true);
+    try {
+      const res = await fetch(`/api/boards?boardId=${boardId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        alert("Board deleted successfully");
+        router.push("/dashboard");
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete board");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to delete board");
+    } finally {
+      setIsDeletingBoard(false);
+      setShowDeleteConfirm(false);
+      setConfirmDeleteTitle("");
     }
   };
 
@@ -437,7 +496,7 @@ export default function BoardWorkspacePage() {
       {/* Tabs */}
       <div className="board-tabs">
         <button className={`board-tab-btn ${activeTab === "kanban" ? "active" : ""}`} onClick={() => setActiveTab("kanban")}>
-          📋 Kanban Board {activeSprint && <span className="badge badge-success" style={{ fontSize: 9, marginLeft: 6 }}>Active Sprint</span>}
+          📋 Board {activeSprint && <span className="badge badge-success" style={{ fontSize: 9, marginLeft: 6 }}>Active Sprint</span>}
         </button>
         <button className={`board-tab-btn ${activeTab === "backlog" ? "active" : ""}`} onClick={() => setActiveTab("backlog")}>
           🗂️ Backlog & Sprints
@@ -845,148 +904,189 @@ export default function BoardWorkspacePage() {
       )}
 {/* 4. COLUMNS SETTINGS TAB */}
       {activeTab === "settings" && (
-        <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 32, alignItems: "start" }}>
-          {/* Columns Table */}
-          <div className="card">
-            <h3 className="card-title" style={{ marginBottom: 16 }}>Manage Board Columns</h3>
-            <div className="admin-table-container">
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Column Name</th>
-                    <th>Sort Order</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {columns.map((col, idx) => (
-                    <tr key={col.id}>
-                      <td>
-                        {/* Inline edit field */}
-                        {col._editing ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <input
-                              type="text"
-                              defaultValue={col.name}
-                              onChange={(e) => (col._newName = e.target.value)}
-                              style={{ width: "120px" }}
-                            />
-                            <button
-                              onClick={async () => {
-                                const newName = col._newName?.trim() || col.name;
-                                if (newName !== col.name) {
-                                  const res = await fetch("/api/boards/columns", {
-                                    method: "PUT",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ columnId: col.id, name: newName }),
-                                  });
-                                  if (res.ok) {
-                                    loadBoardWorkspace();
-                                  } else {
-                                    const data = await res.json();
-                                    alert(data.error || "Failed to rename column");
-                                  }
-                                }
-                                col._editing = false;
-                                // Force re-render
-                                setColumns([...columns]);
-                              }}
-                              className="btn btn-primary"
-                              style={{ fontSize: 12, padding: "2px 6px" }}
-                            >Save</button>
-                            <button
-                              onClick={() => {
-                                col._editing = false;
-                                setColumns([...columns]);
-                              }}
-                              className="btn btn-outline"
-                              style={{ fontSize: 12, padding: "2px 6px" }}
-                            >Cancel</button>
-                          </div>
-                        ) : (
-                          <strong>{col.name}</strong>
-                        )}
-                      </td>
-                      <td>Order {col.order}</td>
-                      <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        {/* Edit toggle */}
-                        <button
-                          onClick={() => {
-                            col._editing = true;
-                            setColumns([...columns]);
-                          }}
-                          style={{ background: "none", color: "var(--text-secondary)", fontSize: 12 }}
-                        >✎</button>
-                        {/* Move Up */}
-                        <button
-                          onClick={async () => {
-                            if (idx === 0) return;
-                            const newColumns = [...columns];
-                            const above = newColumns[idx - 1];
-                            // swap orders
-                            const temp = col.order;
-                            col.order = above.order;
-                            above.order = temp;
-                            // send batch reorder
-                            await fetch("/api/boards/columns", {
-                              method: "PUT",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ columns: newColumns.map(c => ({ id: c.id, order: c.order })) }),
-                            });
-                            loadBoardWorkspace();
-                          }}
-                          style={{ background: "none", color: "var(--text-secondary)", fontSize: 12 }}
-                        >↑</button>
-                        {/* Move Down */}
-                        <button
-                          onClick={async () => {
-                            if (idx === columns.length - 1) return;
-                            const newColumns = [...columns];
-                            const below = newColumns[idx + 1];
-                            const temp = col.order;
-                            col.order = below.order;
-                            below.order = temp;
-                            await fetch("/api/boards/columns", {
-                              method: "PUT",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ columns: newColumns.map(c => ({ id: c.id, order: c.order })) }),
-                            });
-                            loadBoardWorkspace();
-                          }}
-                          style={{ background: "none", color: "var(--text-secondary)", fontSize: 12 }}
-                        >↓</button>
-                        {/* Delete */}
-                        <button
-                          onClick={() => handleDeleteColumn(col.id)}
-                          style={{ background: "none", color: "var(--danger)", fontSize: 12 }}
-                        >Delete</button>
-                      </td>
+        <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 32, alignItems: "start" }}>
+            {/* Columns Table */}
+            <div className="card">
+              <h3 className="card-title" style={{ marginBottom: 16 }}>Manage Board Columns</h3>
+              <div className="admin-table-container">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Column Name</th>
+                      <th>Sort Order</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {columns.map((col, idx) => (
+                      <tr key={col.id}>
+                        <td>
+                          {/* Inline edit field */}
+                          {col._editing ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                              <input
+                                type="text"
+                                defaultValue={col.name}
+                                onChange={(e) => (col._newName = e.target.value)}
+                                style={{ width: "120px" }}
+                              />
+                              <button
+                                onClick={async () => {
+                                  const newName = col._newName?.trim() || col.name;
+                                  if (newName !== col.name) {
+                                    const res = await fetch("/api/boards/columns", {
+                                      method: "PUT",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ columnId: col.id, name: newName }),
+                                    });
+                                    if (res.ok) {
+                                      loadBoardWorkspace();
+                                    } else {
+                                      const data = await res.json();
+                                      alert(data.error || "Failed to rename column");
+                                    }
+                                  }
+                                  col._editing = false;
+                                  // Force re-render
+                                  setColumns([...columns]);
+                                }}
+                                className="btn btn-primary"
+                                style={{ fontSize: 12, padding: "2px 6px" }}
+                              >Save</button>
+                              <button
+                                onClick={() => {
+                                  col._editing = false;
+                                  setColumns([...columns]);
+                                }}
+                                className="btn btn-outline"
+                                style={{ fontSize: 12, padding: "2px 6px" }}
+                              >Cancel</button>
+                            </div>
+                          ) : (
+                            <strong>{col.name}</strong>
+                          )}
+                        </td>
+                        <td>Order {col.order}</td>
+                        <td style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                          {/* Edit toggle */}
+                          <button
+                            onClick={() => {
+                              col._editing = true;
+                              setColumns([...columns]);
+                            }}
+                            style={{ background: "none", color: "var(--text-secondary)", fontSize: 12 }}
+                          >✎</button>
+                          {/* Move Up */}
+                          <button
+                            onClick={async () => {
+                              if (idx === 0) return;
+                              const newColumns = [...columns];
+                              const above = newColumns[idx - 1];
+                              // swap orders
+                              const temp = col.order;
+                              col.order = above.order;
+                              above.order = temp;
+                              // send batch reorder
+                              await fetch("/api/boards/columns", {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ columns: newColumns.map(c => ({ id: c.id, order: c.order })) }),
+                              });
+                              loadBoardWorkspace();
+                            }}
+                            style={{ background: "none", color: "var(--text-secondary)", fontSize: 12 }}
+                          >↑</button>
+                          {/* Move Down */}
+                          <button
+                            onClick={async () => {
+                              if (idx === columns.length - 1) return;
+                              const newColumns = [...columns];
+                              const below = newColumns[idx + 1];
+                              const temp = col.order;
+                              col.order = below.order;
+                              below.order = temp;
+                              await fetch("/api/boards/columns", {
+                                method: "PUT",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ columns: newColumns.map(c => ({ id: c.id, order: c.order })) }),
+                              });
+                              loadBoardWorkspace();
+                            }}
+                            style={{ background: "none", color: "var(--text-secondary)", fontSize: 12 }}
+                          >↓</button>
+                          {/* Delete */}
+                          <button
+                            onClick={() => handleDeleteColumn(col.id)}
+                            style={{ background: "none", color: "var(--danger)", fontSize: 12 }}
+                          >Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Add Column Box */}
+            <div className="card">
+              <h3 className="card-title">Add Column</h3>
+              <form onSubmit={handleAddColumn} style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
+                <div className="form-group">
+                  <label className="form-label">Column Name</label>
+                  <input
+                    type="text"
+                    value={newColName}
+                    onChange={(e) => setNewColName(e.target.value)}
+                    required
+                    placeholder="E.g. Blocked"
+                  />
+                </div>
+                <button type="submit" className="btn btn-primary" style={{ width: "100%" }} disabled={colLoading}>
+                  {colLoading ? "Adding..." : "Add Column"}
+                </button>
+              </form>
             </div>
           </div>
 
-          {/* Add Column Box */}
-          <div className="card">
-            <h3 className="card-title">Add Column</h3>
-            <form onSubmit={handleAddColumn} style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 12 }}>
-              <div className="form-group">
-                <label className="form-label">Column Name</label>
-                <input
-                  type="text"
-                  value={newColName}
-                  onChange={(e) => setNewColName(e.target.value)}
-                  required
-                  placeholder="E.g. Blocked"
-                />
+          {selectedOrg?.role === "ADMIN" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 32, alignItems: "start" }}>
+              {/* Board Settings card */}
+              <div className="card">
+                <h3 className="card-title" style={{ marginBottom: 16 }}>Board Settings</h3>
+                <form onSubmit={handleRenameBoard} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  <div className="form-group">
+                    <label className="form-label">Board Title</label>
+                    <input
+                      type="text"
+                      value={boardTitle}
+                      onChange={(e) => setBoardTitle(e.target.value)}
+                      required
+                      placeholder="Enter new board title"
+                    />
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ width: "fit-content" }} disabled={isRenamingBoard}>
+                    {isRenamingBoard ? "Renaming..." : "Rename Board"}
+                  </button>
+                </form>
               </div>
-              <button type="submit" className="btn btn-primary" style={{ width: "100%" }} disabled={colLoading}>
-                {colLoading ? "Adding..." : "Add Column"}
-              </button>
-            </form>
-          </div>
+
+              {/* Danger Zone card */}
+              <div className="card" style={{ borderColor: "var(--danger)" }}>
+                <h3 className="card-title" style={{ color: "var(--danger)", marginBottom: 8 }}>Danger Zone</h3>
+                <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 16 }}>
+                  Deleting this board will permanently delete all columns, tasks, epics, and active sprints. This action is irreversible.
+                </p>
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  className="btn btn-danger"
+                  style={{ width: "fit-content" }}
+                >
+                  Delete Board
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1038,6 +1138,47 @@ export default function BoardWorkspacePage() {
                 <button type="button" className="btn btn-outline" onClick={() => setShowStartSprint(null)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={startSprintLoading}>
                   {startSprintLoading ? "Starting..." : "Start Sprint"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DELETE BOARD CONFIRMATION */}
+      {showDeleteConfirm && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <h3 style={{ color: "var(--danger)" }}>Delete Board</h3>
+              <button className="modal-close" onClick={() => { setShowDeleteConfirm(false); setConfirmDeleteTitle(""); }}>×</button>
+            </div>
+            <form onSubmit={handleDeleteBoard}>
+              <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <p style={{ fontSize: 14, color: "var(--text-primary)" }}>
+                  This will permanently delete the board <strong>{board?.name}</strong> and all of its sprints, epics, columns, and tasks.
+                </p>
+                <div className="form-group">
+                  <label className="form-label">
+                    To confirm, type <strong>{board?.name}</strong> below:
+                  </label>
+                  <input
+                    type="text"
+                    value={confirmDeleteTitle}
+                    onChange={(e) => setConfirmDeleteTitle(e.target.value)}
+                    required
+                    placeholder="Enter board name"
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={() => { setShowDeleteConfirm(false); setConfirmDeleteTitle(""); }}>Cancel</button>
+                <button
+                  type="submit"
+                  className="btn btn-danger"
+                  disabled={isDeletingBoard || confirmDeleteTitle !== board?.name}
+                >
+                  {isDeletingBoard ? "Deleting..." : "Permanently Delete"}
                 </button>
               </div>
             </form>

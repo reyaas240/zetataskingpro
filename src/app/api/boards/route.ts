@@ -118,3 +118,105 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// PUT: Update board name (Org Admins Only)
+export async function PUT(req: Request) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { boardId, name } = body;
+
+    if (!boardId || !name) {
+      return NextResponse.json({ error: "Board ID and name are required" }, { status: 400 });
+    }
+
+    const board = await db.board.findUnique({
+      where: { id: boardId },
+      include: {
+        project: true,
+      },
+    });
+
+    if (!board) {
+      return NextResponse.json({ error: "Board not found" }, { status: 404 });
+    }
+
+    // Verify Organization Admin status
+    const membership = await db.organizationMember.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: board.project.organizationId,
+          userId: user.id,
+        },
+      },
+    });
+
+    if (!membership || membership.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden: Only Organization Admins can edit board title" }, { status: 403 });
+    }
+
+    const updatedBoard = await db.board.update({
+      where: { id: boardId },
+      data: { name },
+    });
+
+    return NextResponse.json({ success: true, board: updatedBoard });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// DELETE: Drop board (Org Admins Only)
+export async function DELETE(req: Request) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const url = new URL(req.url);
+    const boardId = url.searchParams.get("boardId");
+
+    if (!boardId) {
+      return NextResponse.json({ error: "boardId is required" }, { status: 400 });
+    }
+
+    const board = await db.board.findUnique({
+      where: { id: boardId },
+      include: {
+        project: true,
+      },
+    });
+
+    if (!board) {
+      return NextResponse.json({ error: "Board not found" }, { status: 404 });
+    }
+
+    // Verify Organization Admin status
+    const membership = await db.organizationMember.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: board.project.organizationId,
+          userId: user.id,
+        },
+      },
+    });
+
+    if (!membership || membership.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden: Only Organization Admins can delete boards" }, { status: 403 });
+    }
+
+    await db.board.delete({
+      where: { id: boardId },
+    });
+
+    return NextResponse.json({ success: true, message: "Board deleted successfully" });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
