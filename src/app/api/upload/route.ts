@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
-import fs from "fs";
+import { put } from "@vercel/blob";
 import path from "path";
 
 export async function POST(req: Request) {
@@ -17,28 +17,23 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "File is required" }, { status: 400 });
     }
 
-    // Process file upload locally
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-
-    // Create unique file name to prevent collision
+    // Generate unique filename
     const fileExtension = path.extname(file.name);
     const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}${fileExtension}`;
 
-    // Define storage path in public folder
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
+    // Convert to Buffer
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
 
-    const filePath = path.join(uploadDir, uniqueFilename);
-    fs.writeFileSync(filePath, buffer);
-
-    const relativeUrl = `/uploads/${uniqueFilename}`;
+    // Upload to Vercel Blob (public)
+    const blob = await put(`uploads/${uniqueFilename}`, buffer, {
+      access: "public",
+      contentType: file.type || "application/octet-stream",
+    });
 
     return NextResponse.json({
       success: true,
-      url: relativeUrl,
+      url: blob.url,
       name: file.name,
       size: file.size,
       type: file.type,
