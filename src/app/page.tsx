@@ -104,7 +104,7 @@ export default function LandingPage() {
         <div className="features-grid">
           <div className="feature-card">
             <div className="feature-icon">📋</div>
-            <h3 className="feature-title">Dynamic Kanban Boards</h3>
+            <h3 className="feature-title">Dynamic Boards</h3>
             <p className="feature-desc">
               Organize tasks horizontally. Customize columns to match your team's workflow. Drag and drop cards to update status dynamically.
             </p>
