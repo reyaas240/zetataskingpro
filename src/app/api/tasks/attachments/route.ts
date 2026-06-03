@@ -50,17 +50,17 @@ export async function POST(req: Request) {
 
     // Create a unique filename for blob storage
     const fileExtension = path.extname(file.name);
-    const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}${fileExtension}`;
+    const uniqueFilename = `${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2, 15)}${fileExtension}`;
 
-    // Upload to Vercel Blob
-    const blob = await put(buffer, {
-      // The pathname determines the URL path and storage location
-      pathname: `uploads/${uniqueFilename}`,
-      // Optional: set mime type for better handling
+    // Upload to Vercel Blob (correct 3‑argument signature)
+    const blob = await put(`uploads/${uniqueFilename}`, buffer, {
+      access: "public",
       contentType: file.type || "application/octet-stream",
     });
 
-    // The Blob library returns a URL you can serve directly
+    // The Blob library returns a public URL we can store
     const fileUrl = blob.url;
 
     // Register attachment in database
