@@ -1,7 +1,8 @@
+// src/app/api/tasks/attachments/route.ts
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import fs from "fs";
+import { put } from "@vercel/blob";
 import path from "path";
 
 // POST: Upload an attachment for a task
@@ -43,30 +44,30 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Process file upload locally
+    // Process file upload
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // Create unique file name to prevent collision
+    // Create a unique filename for blob storage
     const fileExtension = path.extname(file.name);
     const uniqueFilename = `${Date.now()}-${Math.random().toString(36).substring(2, 15)}${fileExtension}`;
 
-    // Define storage path
-    const uploadDir = path.join(process.cwd(), "public", "uploads");
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
+    // Upload to Vercel Blob
+    const blob = await put(buffer, {
+      // The pathname determines the URL path and storage location
+      pathname: `uploads/${uniqueFilename}`,
+      // Optional: set mime type for better handling
+      contentType: file.type || "application/octet-stream",
+    });
 
-    const filePath = path.join(uploadDir, uniqueFilename);
-    fs.writeFileSync(filePath, buffer);
-
-    const relativeUrl = `/uploads/${uniqueFilename}`;
+    // The Blob library returns a URL you can serve directly
+    const fileUrl = blob.url;
 
     // Register attachment in database
     const attachment = await db.attachment.create({
       data: {
         fileName: file.name,
-        fileUrl: relativeUrl,
+        fileUrl: fileUrl,
         fileType: file.type || "application/octet-stream",
         fileSize: file.size,
         taskId,
