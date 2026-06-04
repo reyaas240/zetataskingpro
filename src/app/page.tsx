@@ -57,7 +57,7 @@ export default function LandingPage() {
           <a href="#features" className="nav-link">Features</a>
           <a href="#pricing" className="nav-link">Pricing</a>
           <a href="#calculator" className="nav-link">License Calculator</a>
-          <Link href="/platform-admin" className="nav-link">Platform Admin</Link>
+
         </nav>
         <div className="nav-actions">
           <button onClick={toggleTheme} className="theme-toggle-btn" aria-label="Toggle Theme">
