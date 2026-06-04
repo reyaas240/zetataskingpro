@@ -244,6 +244,49 @@ export default function BoardWorkspacePage() {
     }
   };
 
+  const handleBacklogDragEnd = async (result: DropResult) => {
+    const { destination, source, draggableId } = result;
+
+    if (!destination) return;
+    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
+
+    const newSprintId = destination.droppableId === "backlog" ? null : destination.droppableId;
+
+    // Optimistically update tasks list with correct ordering
+    const draggedTask = tasks.find((t) => t.id === draggableId);
+    if (draggedTask) {
+      const otherTasks = tasks.filter((t) => t.id !== draggableId);
+      const destTasks = otherTasks.filter((t) =>
+        newSprintId === null ? !t.sprintId : t.sprintId === newSprintId
+      );
+      const remainingTasks = otherTasks.filter((t) =>
+        newSprintId === null ? !!t.sprintId : t.sprintId !== newSprintId
+      );
+
+      const updatedDraggedTask = { ...draggedTask, sprintId: newSprintId };
+      const insertIndex = Math.max(0, Math.min(destination.index, destTasks.length));
+      destTasks.splice(insertIndex, 0, updatedDraggedTask);
+
+      setTasks([...remainingTasks, ...destTasks]);
+    }
+
+    try {
+      await fetch("/api/tasks", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId: draggableId,
+          sprintId: newSprintId,
+          destinationIndex: destination.index,
+        }),
+      });
+      fetchTasks();
+    } catch (e) {
+      console.error("Failed to persist task sprint/order", e);
+      fetchTasks();
+    }
+  };
+
   // Submit Task Creation
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -634,135 +677,187 @@ export default function BoardWorkspacePage() {
 
       {/* 2. BACKLOG TAB */}
       {activeTab === "backlog" && (
-        <div className="backlog-view-container">
-          <div className="flex justify-between align-center">
-            <h2 style={{ fontSize: 18, fontWeight: 700 }}>Sprint Backlog Planner</h2>
-            <button onClick={handleCreateSprint} className="btn btn-outline" style={{ padding: "6px 12px", fontSize: 12 }}>
-              ➕ Create Sprint
-            </button>
-          </div>
+        <DragDropContext onDragEnd={handleBacklogDragEnd}>
+          <div className="backlog-view-container">
+            <div className="flex justify-between align-center">
+              <h2 style={{ fontSize: 18, fontWeight: 700 }}>Sprint Backlog Planner</h2>
+              <button onClick={handleCreateSprint} className="btn btn-outline" style={{ padding: "6px 12px", fontSize: 12 }}>
+                ➕ Create Sprint
+              </button>
+            </div>
 
-          {/* Sprints lists */}
-          {sprints.map((sprint) => {
-            const sprintTasks = tasks.filter((t) => t.sprintId === sprint.id);
-            const totalPoints = sprintTasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
-            
-            return (
-              <div key={sprint.id} className="sprint-block">
-                <div className="sprint-header">
-                  <div className="sprint-title-info">
-                    <span style={{ fontSize: 15, fontWeight: 800 }}>🏃 {sprint.name}</span>
-                    <span className={`badge ${sprint.status === "ACTIVE" ? "badge-success" : sprint.status === "COMPLETED" ? "badge-primary" : "badge-warning"}`} style={{ fontSize: 9 }}>
-                      {sprint.status}
-                    </span>
-                    <span className="sprint-meta">
-                      {sprintTasks.length} tasks | <strong>{totalPoints} SP</strong>
-                    </span>
+            {/* Sprints lists */}
+            {sprints.map((sprint) => {
+              const sprintTasks = tasks.filter((t) => t.sprintId === sprint.id);
+              const totalPoints = sprintTasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
+              
+              return (
+                <div key={sprint.id} className="sprint-block">
+                  <div className="sprint-header">
+                    <div className="sprint-title-info">
+                      <span style={{ fontSize: 15, fontWeight: 800 }}>🏃 {sprint.name}</span>
+                      <span className={`badge ${sprint.status === "ACTIVE" ? "badge-success" : sprint.status === "COMPLETED" ? "badge-primary" : "badge-warning"}`} style={{ fontSize: 9 }}>
+                        {sprint.status}
+                      </span>
+                      <span className="sprint-meta">
+                        {sprintTasks.length} tasks | <strong>{totalPoints} SP</strong>
+                      </span>
+                    </div>
+                    
+                    <div className="sprint-action-buttons">
+                      {sprint.status === "PLANNING" && (
+                        <button
+                          onClick={() => setShowStartSprint(sprint.id)}
+                          className="btn btn-primary"
+                          style={{ padding: "4px 10px", fontSize: 11 }}
+                        >
+                          Start Sprint
+                        </button>
+                      )}
+                      {sprint.status === "ACTIVE" && (
+                        <button
+                          onClick={() => handleCompleteSprint(sprint.id)}
+                          className="btn btn-outline"
+                          style={{ padding: "4px 10px", fontSize: 11, borderColor: "var(--success)", color: "var(--success)" }}
+                        >
+                          Complete Sprint
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  
-                  <div className="sprint-action-buttons">
-                    {sprint.status === "PLANNING" && (
-                      <button
-                        onClick={() => setShowStartSprint(sprint.id)}
-                        className="btn btn-primary"
-                        style={{ padding: "4px 10px", fontSize: 11 }}
-                      >
-                        Start Sprint
-                      </button>
-                    )}
-                    {sprint.status === "ACTIVE" && (
-                      <button
-                        onClick={() => handleCompleteSprint(sprint.id)}
-                        className="btn btn-outline"
-                        style={{ padding: "4px 10px", fontSize: 11, borderColor: "var(--success)", color: "var(--success)" }}
-                      >
-                        Complete Sprint
-                      </button>
-                    )}
-                  </div>
-                </div>
 
-                <div className="backlog-task-list">
-                  {sprintTasks.length === 0 ? (
-                    <p style={{ fontSize: 12, color: "var(--text-tertiary)", textAlign: "center", padding: "10px 0" }}>
-                      Plan sprint by adding tasks to this sprint.
-                    </p>
-                  ) : (
-                    sprintTasks.map((t) => (
-                      <div key={t.id} className="backlog-task-row" onClick={() => setSelectedTaskId(t.id)}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <span className={`task-type-icon ${t.taskType === "BUG" ? "type-bug" : t.taskType === "STORY" ? "type-story" : "type-task"}`} style={{ width: 14, height: 14, fontSize: 9 }}>
-                            {t.taskType[0]}
-                          </span>
-                          <strong style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{t.code}</strong>
-                          <span style={{ fontSize: 13, fontWeight: 500 }}>{t.title}</span>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          {t.epic && (
-                            <span className="badge" style={{ backgroundColor: t.epic.colorCode + "20", color: t.epic.colorCode, fontSize: 9 }}>
-                              {t.epic.name}
-                            </span>
-                          )}
-                          <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-                            Priority: {t.priority}
-                          </span>
-                          {t.storyPoints && (
-                            <span className="story-points-badge">{t.storyPoints}</span>
-                          )}
-                        </div>
+                  <Droppable droppableId={sprint.id}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        className="backlog-task-list"
+                        style={{
+                          backgroundColor: snapshot.isDraggingOver ? "var(--bg-tertiary)" : "var(--bg-secondary)",
+                        }}
+                      >
+                        {sprintTasks.length === 0 && !snapshot.isDraggingOver && (
+                          <p style={{ fontSize: 12, color: "var(--text-tertiary)", textAlign: "center", padding: "10px 0" }}>
+                            Plan sprint by adding tasks to this sprint.
+                          </p>
+                        )}
+                        {sprintTasks.map((t, idx) => (
+                          <Draggable key={t.id} draggableId={t.id} index={idx}>
+                            {(provided, snapshot) => (
+                              <div
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                className="backlog-task-row"
+                                onClick={() => setSelectedTaskId(t.id)}
+                                style={{
+                                  ...provided.draggableProps.style,
+                                  opacity: snapshot.isDragging ? 0.8 : 1,
+                                }}
+                              >
+                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                  <span className={`task-type-icon ${t.taskType === "BUG" ? "type-bug" : t.taskType === "STORY" ? "type-story" : "type-task"}`} style={{ width: 14, height: 14, fontSize: 9 }}>
+                                    {t.taskType[0]}
+                                  </span>
+                                  <strong style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{t.code}</strong>
+                                  <span style={{ fontSize: 13, fontWeight: 500 }}>{t.title}</span>
+                                </div>
+                                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                                  {t.epic && (
+                                    <span className="badge" style={{ backgroundColor: t.epic.colorCode + "20", color: t.epic.colorCode, fontSize: 9 }}>
+                                      {t.epic.name}
+                                    </span>
+                                  )}
+                                  <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+                                    Priority: {t.priority}
+                                  </span>
+                                  {t.storyPoints && (
+                                    <span className="story-points-badge">{t.storyPoints}</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
                       </div>
-                    ))
-                  )}
+                    )}
+                  </Droppable>
+                </div>
+              );
+            })}
+
+            {/* General Backlog (sprintId is null) */}
+            <div className="sprint-block" style={{ borderStyle: "dashed" }}>
+              <div className="sprint-header" style={{ backgroundColor: "rgba(0,0,0,0.01)" }}>
+                <div className="sprint-title-info">
+                  <span style={{ fontSize: 15, fontWeight: 800 }}>🗃️ Backlog</span>
+                  <span className="sprint-meta">
+                    {tasks.filter((t) => !t.sprintId).length} tasks not in sprint
+                  </span>
                 </div>
               </div>
-            );
-          })}
-
-          {/* General Backlog (sprintId is null) */}
-          <div className="sprint-block" style={{ borderStyle: "dashed" }}>
-            <div className="sprint-header" style={{ backgroundColor: "rgba(0,0,0,0.01)" }}>
-              <div className="sprint-title-info">
-                <span style={{ fontSize: 15, fontWeight: 800 }}>🗃️ Backlog</span>
-                <span className="sprint-meta">
-                  {tasks.filter((t) => !t.sprintId).length} tasks not in sprint
-                </span>
-              </div>
-            </div>
-            
-            <div className="backlog-task-list" style={{ backgroundColor: "transparent" }}>
-              {tasks.filter((t) => !t.sprintId).length === 0 ? (
-                <p style={{ fontSize: 12, color: "var(--text-tertiary)", textAlign: "center", padding: "10px 0" }}>
-                  No tasks in backlog. Create a task to add items.
-                </p>
-              ) : (
-                tasks.filter((t) => !t.sprintId).map((t) => (
-                  <div key={t.id} className="backlog-task-row" onClick={() => setSelectedTaskId(t.id)}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <span className={`task-type-icon ${t.taskType === "BUG" ? "type-bug" : t.taskType === "STORY" ? "type-story" : "type-task"}`} style={{ width: 14, height: 14, fontSize: 9 }}>
-                        {t.taskType[0]}
-                      </span>
-                      <strong style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{t.code}</strong>
-                      <span style={{ fontSize: 13, fontWeight: 500 }}>{t.title}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      {t.epic && (
-                        <span className="badge" style={{ backgroundColor: t.epic.colorCode + "20", color: t.epic.colorCode, fontSize: 9 }}>
-                          {t.epic.name}
-                        </span>
-                      )}
-                      <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
-                        Priority: {t.priority}
-                      </span>
-                      {t.storyPoints && (
-                        <span className="story-points-badge">{t.storyPoints}</span>
-                      )}
-                    </div>
+              
+              <Droppable droppableId="backlog">
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.droppableProps}
+                    className="backlog-task-list"
+                    style={{
+                      backgroundColor: snapshot.isDraggingOver ? "var(--bg-tertiary)" : "transparent",
+                    }}
+                  >
+                    {tasks.filter((t) => !t.sprintId).length === 0 && !snapshot.isDraggingOver && (
+                      <p style={{ fontSize: 12, color: "var(--text-tertiary)", textAlign: "center", padding: "10px 0" }}>
+                        No tasks in backlog. Create a task to add items.
+                      </p>
+                    )}
+                    {tasks.filter((t) => !t.sprintId).map((t, idx) => (
+                      <Draggable key={t.id} draggableId={t.id} index={idx}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.draggableProps}
+                            {...provided.dragHandleProps}
+                            className="backlog-task-row"
+                            onClick={() => setSelectedTaskId(t.id)}
+                            style={{
+                              ...provided.draggableProps.style,
+                              opacity: snapshot.isDragging ? 0.8 : 1,
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              <span className={`task-type-icon ${t.taskType === "BUG" ? "type-bug" : t.taskType === "STORY" ? "type-story" : "type-task"}`} style={{ width: 14, height: 14, fontSize: 9 }}>
+                                {t.taskType[0]}
+                              </span>
+                              <strong style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{t.code}</strong>
+                              <span style={{ fontSize: 13, fontWeight: 500 }}>{t.title}</span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                              {t.epic && (
+                                <span className="badge" style={{ backgroundColor: t.epic.colorCode + "20", color: t.epic.colorCode, fontSize: 9 }}>
+                                  {t.epic.name}
+                                </span>
+                              )}
+                              <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>
+                                Priority: {t.priority}
+                              </span>
+                              {t.storyPoints && (
+                                <span className="story-points-badge">{t.storyPoints}</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </Draggable>
+                    ))}
+                    {provided.placeholder}
                   </div>
-                ))
-              )}
+                )}
+              </Droppable>
             </div>
           </div>
-        </div>
+        </DragDropContext>
       )}
 
       {/* 3. EPICS TAB */}

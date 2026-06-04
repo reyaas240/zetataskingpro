@@ -67,7 +67,10 @@ export async function GET(req: Request) {
         outgoingLinks: { include: { targetTask: true } },
         incomingLinks: { include: { sourceTask: true } },
       },
-      orderBy: { createdAt: "desc" },
+      orderBy: [
+        { order: "asc" },
+        { createdAt: "desc" },
+      ],
     });
 
     return NextResponse.json({ tasks });
@@ -199,6 +202,7 @@ export async function PUT(req: Request) {
       sprintId,
       epicId,
       assigneeId,
+      destinationIndex,
     } = body;
 
     if (!taskId) {
@@ -245,6 +249,35 @@ export async function PUT(req: Request) {
         ...(assigneeId !== undefined && { assigneeId: assigneeId || null }),
       },
     });
+
+    // Reorder sprint tasks if destinationIndex is supplied
+    if (destinationIndex !== undefined) {
+      const targetSprintId = sprintId !== undefined ? (sprintId || null) : task.sprintId;
+      
+      const siblingTasks = await db.task.findMany({
+        where: {
+          boardId: task.boardId,
+          sprintId: targetSprintId,
+        },
+        orderBy: [
+          { order: "asc" },
+          { createdAt: "desc" },
+        ],
+      });
+
+      const orderedSiblings = siblingTasks.filter((t) => t.id !== taskId);
+      const insertIndex = Math.max(0, Math.min(destinationIndex, orderedSiblings.length));
+      orderedSiblings.splice(insertIndex, 0, updatedTask);
+
+      await db.$transaction(
+        orderedSiblings.map((t, idx) =>
+          db.task.update({
+            where: { id: t.id },
+            data: { order: idx },
+          })
+        )
+      );
+    }
 
     // Notify assignee of assignment or update
     const assigneeChanged = assigneeId !== undefined && assigneeId !== task.assigneeId;
