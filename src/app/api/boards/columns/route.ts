@@ -115,6 +115,27 @@ export async function PUT(req: Request) {
 
     // Route 2: Rename single column
     if (columnId && name) {
+      const column = await db.boardColumn.findUnique({
+        where: { id: columnId },
+        include: { board: { include: { project: true } } },
+      });
+
+      if (!column) {
+        return NextResponse.json({ error: "Column not found" }, { status: 404 });
+      }
+
+      // Verify membership and role for rename
+      const renameMembership = await db.organizationMember.findUnique({
+        where: {
+          organizationId_userId: {
+            organizationId: column.board.project.organizationId,
+            userId: user.id,
+          },
+        },
+      });
+      if (!renameMembership || renameMembership.role !== "ADMIN") {
+        return NextResponse.json({ error: "Only Organization Admins can rename columns" }, { status: 403 });
+      }
       const updatedColumn = await db.boardColumn.update({
         where: { id: columnId },
         data: { name },

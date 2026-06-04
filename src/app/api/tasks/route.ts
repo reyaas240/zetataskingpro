@@ -456,7 +456,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    // Verify membership
+    // Verify membership and role
     const membership = await db.organizationMember.findUnique({
       where: {
         organizationId_userId: {
@@ -468,6 +468,11 @@ export async function DELETE(req: Request) {
 
     if (!membership) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Admins can delete any task; members can only delete tasks they are assigned to
+    if (membership.role !== "ADMIN" && task.assigneeId !== user.id) {
+      return NextResponse.json({ error: "Members can only delete their own tasks" }, { status: 403 });
     }
 
     await db.task.delete({
