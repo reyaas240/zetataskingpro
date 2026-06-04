@@ -41,6 +41,7 @@ export default function TaskDrawer({
   const [sprintId, setSprintId] = useState("");
   const [epicId, setEpicId] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
+  const [watcherIds, setWatcherIds] = useState<string[]>([]);
 
   // Attachments state
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -138,6 +139,7 @@ export default function TaskDrawer({
         setSprintId(data.task.sprintId || "");
         setEpicId(data.task.epicId || "");
         setAssigneeId(data.task.assigneeId || "");
+        setWatcherIds(data.task.watchers?.map((w: any) => w.userId) || []);
       } else {
         setError(data.error || "Failed to load task details.");
       }
@@ -601,141 +603,192 @@ export default function TaskDrawer({
 
               {/* Right Column (Sidebar Details) */}
               {!isExpanded && (
-                <div className="detail-sidebar">
+                <div className="detail-sidebar" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                 
-                {/* Column/Status */}
-                <div>
-                  <span className="detail-label">Status</span>
-                  <select
-                    value={columnId}
-                    onChange={(e) => {
-                      setColumnId(e.target.value);
-                      handleUpdateField("columnId", e.target.value);
-                    }}
-                    className="filter-select w-full"
-                  >
-                    {boardColumns.map((col) => (
-                      <option key={col.id} value={col.id}>{col.name}</option>
-                    ))}
-                  </select>
-                </div>
+                  {/* Core Details Group */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div>
+                      <span className="detail-label" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>Status</span>
+                      <select
+                        value={columnId}
+                        onChange={(e) => {
+                          setColumnId(e.target.value);
+                          handleUpdateField("columnId", e.target.value);
+                        }}
+                        className="filter-select w-full"
+                      >
+                        {boardColumns.map((col) => (
+                          <option key={col.id} value={col.id}>{col.name}</option>
+                        ))}
+                      </select>
+                    </div>
 
-                {/* Assignee */}
-                <div>
-                  <span className="detail-label">Assignee</span>
-                  <select
-                    value={assigneeId}
-                    onChange={(e) => {
-                      setAssigneeId(e.target.value);
-                      handleUpdateField("assigneeId", e.target.value);
-                    }}
-                    className="filter-select w-full"
-                  >
-                    <option value="">Unassigned</option>
-                    {orgMembers.map((member) => (
-                      <option key={member.user.id} value={member.user.id}>
-                        {member.user.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    <div>
+                      <span className="detail-label" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>Priority</span>
+                      <select
+                        value={priority}
+                        onChange={(e) => {
+                          setPriority(e.target.value);
+                          handleUpdateField("priority", e.target.value);
+                        }}
+                        className="filter-select w-full"
+                      >
+                        <option value="Critical">🔴 Critical</option>
+                        <option value="High">🟠 High</option>
+                        <option value="Medium">🟡 Medium</option>
+                        <option value="Low">🟢 Low</option>
+                      </select>
+                    </div>
 
-                {/* Priority */}
-                <div>
-                  <span className="detail-label">Priority</span>
-                  <select
-                    value={priority}
-                    onChange={(e) => {
-                      setPriority(e.target.value);
-                      handleUpdateField("priority", e.target.value);
-                    }}
-                    className="filter-select w-full"
-                  >
-                    <option value="Critical">🔴 Critical</option>
-                    <option value="High">🟠 High</option>
-                    <option value="Medium">🟡 Medium</option>
-                    <option value="Low">🟢 Low</option>
-                  </select>
-                </div>
-
-                {/* Story Points */}
-                <div>
-                  <span className="detail-label">Story Points</span>
-                  <input
-                    type="number"
-                    value={storyPoints}
-                    onChange={(e) => setStoryPoints(e.target.value)}
-                    onBlur={() => handleUpdateField("storyPoints", storyPoints)}
-                    placeholder="None"
-                    min="0"
-                    className="inline-edit-input w-full"
-                  />
-                </div>
-
-                {/* Sprint */}
-                <div>
-                  <span className="detail-label">Sprint</span>
-                  <select
-                    value={sprintId}
-                    onChange={(e) => {
-                      setSprintId(e.target.value);
-                      handleUpdateField("sprintId", e.target.value);
-                    }}
-                    className="filter-select w-full"
-                  >
-                    <option value="">Backlog (No Sprint)</option>
-                    {boardSprints
-                      .filter((s) => s.status !== "COMPLETED")
-                      .map((sprint) => (
-                        <option key={sprint.id} value={sprint.id}>
-                          {sprint.name} ({sprint.status})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-
-                {/* Epic */}
-                <div>
-                  <span className="detail-label">Epic</span>
-                  <select
-                    value={epicId}
-                    onChange={(e) => {
-                      setEpicId(e.target.value);
-                      handleUpdateField("epicId", e.target.value);
-                    }}
-                    className="filter-select w-full"
-                  >
-                    <option value="">None</option>
-                    {boardEpics.map((epic) => (
-                      <option key={epic.id} value={epic.id}>
-                        {epic.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Dates */}
-                <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: 12, marginTop: 12 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
-                    <span style={{ color: "var(--text-tertiary)" }}>Reporter:</span>
-                    <strong style={{ color: "var(--text-secondary)" }}>{task?.reporter?.name}</strong>
+                    <div>
+                      <span className="detail-label" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>Story Points</span>
+                      <input
+                        type="number"
+                        value={storyPoints}
+                        onChange={(e) => setStoryPoints(e.target.value)}
+                        onBlur={() => handleUpdateField("storyPoints", storyPoints)}
+                        placeholder="None"
+                        min="0"
+                        className="inline-edit-input w-full"
+                      />
+                    </div>
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 6 }}>
-                    <span style={{ color: "var(--text-tertiary)" }}>Created:</span>
-                    <strong style={{ color: "var(--text-secondary)" }}>
-                      {task ? formatInTimezone(task.createdAt, orgTimezone) : "-"}
-                    </strong>
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 6 }}>
-                    <span style={{ color: "var(--text-tertiary)" }}>Updated:</span>
-                    <strong style={{ color: "var(--text-secondary)" }}>
-                      {task ? formatInTimezone(task.updatedAt, orgTimezone) : "-"}
-                    </strong>
-                  </div>
-                </div>
 
-                {/* Delete button */}
-                <div style={{ marginTop: 20 }}>
+                  <hr style={{ border: 0, borderTop: "1px solid var(--border-color)", margin: 0 }} />
+
+                  {/* People Group */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div>
+                      <span className="detail-label" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>Assignee</span>
+                      <select
+                        value={assigneeId}
+                        onChange={(e) => {
+                          setAssigneeId(e.target.value);
+                          handleUpdateField("assigneeId", e.target.value);
+                        }}
+                        className="filter-select w-full"
+                      >
+                        <option value="">Unassigned</option>
+                        {orgMembers.map((member) => (
+                          <option key={member.user.id} value={member.user.id}>
+                            {member.user.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <span className="detail-label" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>Watchers</span>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+                        {watcherIds.map(watcherId => {
+                          const m = orgMembers.find(m => m.user.id === watcherId);
+                          if (!m) return null;
+                          return (
+                            <div key={watcherId} style={{ display: "flex", alignItems: "center", gap: 4, backgroundColor: "var(--background-secondary)", border: "1px solid var(--border-color)", padding: "2px 8px", borderRadius: 12, fontSize: 11 }}>
+                              <span>{m.user.name}</span>
+                              <button 
+                                onClick={() => {
+                                  const newWatchers = watcherIds.filter(id => id !== watcherId);
+                                  setWatcherIds(newWatchers);
+                                  handleUpdateField("watcherIds", newWatchers);
+                                }}
+                                style={{ background: "none", color: "var(--text-tertiary)", cursor: "pointer", fontSize: 12, marginLeft: 2 }}
+                              >✕</button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <select
+                        value=""
+                        onChange={(e) => {
+                          if (e.target.value && !watcherIds.includes(e.target.value)) {
+                            const newWatchers = [...watcherIds, e.target.value];
+                            setWatcherIds(newWatchers);
+                            handleUpdateField("watcherIds", newWatchers);
+                          }
+                        }}
+                        className="filter-select w-full"
+                        style={{ padding: "4px 8px", height: "auto" }}
+                      >
+                        <option value="" disabled>+ Add Watcher</option>
+                        {orgMembers.filter(m => !watcherIds.includes(m.user.id)).map((member) => (
+                          <option key={member.user.id} value={member.user.id}>
+                            {member.user.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <hr style={{ border: 0, borderTop: "1px solid var(--border-color)", margin: 0 }} />
+
+                  {/* Organization Group */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div>
+                      <span className="detail-label" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>Sprint</span>
+                      <select
+                        value={sprintId}
+                        onChange={(e) => {
+                          setSprintId(e.target.value);
+                          handleUpdateField("sprintId", e.target.value);
+                        }}
+                        className="filter-select w-full"
+                      >
+                        <option value="">Backlog (No Sprint)</option>
+                        {boardSprints
+                          .filter((s) => s.status !== "COMPLETED")
+                          .map((sprint) => (
+                            <option key={sprint.id} value={sprint.id}>
+                              {sprint.name} ({sprint.status})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <span className="detail-label" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>Epic</span>
+                      <select
+                        value={epicId}
+                        onChange={(e) => {
+                          setEpicId(e.target.value);
+                          handleUpdateField("epicId", e.target.value);
+                        }}
+                        className="filter-select w-full"
+                      >
+                        <option value="">None</option>
+                        {boardEpics.map((epic) => (
+                          <option key={epic.id} value={epic.id}>
+                            {epic.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <hr style={{ border: 0, borderTop: "1px solid var(--border-color)", margin: 0 }} />
+
+                  {/* Dates */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                      <span style={{ color: "var(--text-tertiary)" }}>Reporter:</span>
+                      <strong style={{ color: "var(--text-secondary)" }}>{task?.reporter?.name}</strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                      <span style={{ color: "var(--text-tertiary)" }}>Created:</span>
+                      <strong style={{ color: "var(--text-secondary)" }}>
+                        {task ? formatInTimezone(task.createdAt, orgTimezone) : "-"}
+                      </strong>
+                    </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                      <span style={{ color: "var(--text-tertiary)" }}>Updated:</span>
+                      <strong style={{ color: "var(--text-secondary)" }}>
+                        {task ? formatInTimezone(task.updatedAt, orgTimezone) : "-"}
+                      </strong>
+                    </div>
+                  </div>
+
+                  {/* Delete button */}
+                  <div style={{ marginTop: "auto", paddingTop: 16 }}>
                   <button
                       onClick={async () => {
                         if (confirm("Are you sure you want to delete this task?")) {

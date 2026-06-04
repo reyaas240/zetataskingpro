@@ -35,7 +35,22 @@ export async function GET(req: Request) {
       where: { organizationId },
       include: {
         user: {
-          select: { id: true, name: true, email: true, avatarUrl: true, timezone: true },
+          select: { 
+            id: true, 
+            name: true, 
+            email: true, 
+            avatarUrl: true, 
+            timezone: true,
+            boardMembers: {
+              where: {
+                board: {
+                  project: {
+                    organizationId
+                  }
+                }
+              }
+            }
+          },
         },
       },
       orderBy: { joinedAt: "desc" },

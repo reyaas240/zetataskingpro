@@ -110,6 +110,14 @@ export async function POST(req: Request) {
         },
       });
 
+      // 4. Create Board Member
+      await tx.boardMember.create({
+        data: {
+          boardId: newBoard.id,
+          userId: user.id,
+        },
+      });
+
       return newBoard;
     });
 

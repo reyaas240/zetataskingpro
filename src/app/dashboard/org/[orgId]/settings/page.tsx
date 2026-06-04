@@ -35,6 +35,9 @@ export default function OrgSettingsPage() {
   const [invitations, setInvitations] = useState<any[]>([]);
   const [devOtp, setDevOtp] = useState<string | null>(null);
 
+  // Board Access Assignment State
+  const [boardToggleLoading, setBoardToggleLoading] = useState<string | null>(null);
+
   // Direct assign states
   const [assignEmail, setAssignEmail] = useState("");
   const [assignRole, setAssignRole] = useState("MEMBER");
@@ -202,6 +205,49 @@ export default function OrgSettingsPage() {
     }
   };
 
+  const handleToggleBoardAccess = async (userId: string, boardId: string, isCurrentlyAssigned: boolean) => {
+    setBoardToggleLoading(`${userId}-${boardId}`);
+    try {
+      const method = isCurrentlyAssigned ? "DELETE" : "POST";
+      const url = isCurrentlyAssigned 
+        ? `/api/boards/members?boardId=${boardId}&userId=${userId}` 
+        : `/api/boards/members`;
+      
+      const options: RequestInit = { method };
+      if (!isCurrentlyAssigned) {
+        options.headers = { "Content-Type": "application/json" };
+        options.body = JSON.stringify({ boardId, userId });
+      }
+
+      const res = await fetch(url, options);
+      if (res.ok) {
+        // Optimistically update the members state
+        setMembers(prevMembers => prevMembers.map(m => {
+          if (m.user.id === userId) {
+            let updatedBoardMembers = [...(m.user.boardMembers || [])];
+            if (isCurrentlyAssigned) {
+              updatedBoardMembers = updatedBoardMembers.filter(bm => bm.boardId !== boardId);
+            } else {
+              updatedBoardMembers.push({ boardId, userId });
+            }
+            return {
+              ...m,
+              user: { ...m.user, boardMembers: updatedBoardMembers }
+            };
+          }
+          return m;
+        }));
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to update board access");
+      }
+    } catch {
+      alert("Network error.");
+    } finally {
+      setBoardToggleLoading(null);
+    }
+  };
+
   if (!selectedOrg) return null;
 
   return (
@@ -278,8 +324,8 @@ export default function OrgSettingsPage() {
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }}>
                   {members.map((m) => (
+                  <React.Fragment key={m.id}>
                     <div
-                      key={m.id}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -307,6 +353,83 @@ export default function OrgSettingsPage() {
                         <div>
                           <div style={{ fontSize: 14, fontWeight: 600 }}>{m.user.name}</div>
                           <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{m.user.email} (TZ: {m.user.timezone})</div>
+                          
+                          {/* Board Assignment Chips */}
+                          {m.role !== "ADMIN" && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8, alignItems: "center" }}>
+                              {m.user.boardMembers?.map((bm: any) => {
+                                // Find the board name
+                                let boardName = "Unknown Board";
+                                selectedOrg.projects?.forEach((p: any) => {
+                                  const b = p.boards?.find((b: any) => b.id === bm.boardId);
+                                  if (b) boardName = b.name;
+                                });
+                                
+                                const isLoading = boardToggleLoading === `${m.user.id}-${bm.boardId}`;
+
+                                return (
+                                  <div key={bm.boardId} style={{
+                                    display: "flex", alignItems: "center", gap: 4, 
+                                    backgroundColor: "var(--background-secondary)", 
+                                    border: "1px solid var(--border-color)",
+                                    padding: "2px 8px", borderRadius: 12, fontSize: 11,
+                                    opacity: isLoading ? 0.5 : 1
+                                  }}>
+                                    <span>{boardName}</span>
+                                    <button 
+                                      onClick={() => handleToggleBoardAccess(m.user.id, bm.boardId, true)}
+                                      disabled={isLoading}
+                                      style={{ background: "none", color: "var(--text-tertiary)", cursor: isLoading ? "not-allowed" : "pointer", fontSize: 12, marginLeft: 2 }}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                              
+                              {/* Assign Dropdown */}
+                              <select 
+                                value=""
+                                onChange={(e) => {
+                                  if (e.target.value) {
+                                    handleToggleBoardAccess(m.user.id, e.target.value, false);
+                                  }
+                                }}
+                                style={{
+                                  backgroundColor: "transparent",
+                                  border: "1px dashed var(--border-color)",
+                                  borderRadius: 12,
+                                  fontSize: 11,
+                                  padding: "2px 6px",
+                                  color: "var(--text-secondary)",
+                                  cursor: "pointer",
+                                  outline: "none"
+                                }}
+                              >
+                                <option value="" disabled>+ Assign Board</option>
+                                {selectedOrg.projects?.map((proj: any) => {
+                                  const unassignedBoards = proj.boards?.filter((b: any) => 
+                                    !m.user.boardMembers?.some((bm: any) => bm.boardId === b.id)
+                                  ) || [];
+                                  
+                                  if (unassignedBoards.length === 0) return null;
+                                  
+                                  return (
+                                    <optgroup key={proj.id} label={proj.name}>
+                                      {unassignedBoards.map((b: any) => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                      ))}
+                                    </optgroup>
+                                  );
+                                })}
+                              </select>
+                            </div>
+                          )}
+                          {m.role === "ADMIN" && (
+                            <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>
+                              Has access to all boards
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -322,6 +445,7 @@ export default function OrgSettingsPage() {
                         </button>
                       </div>
                     </div>
+                  </React.Fragment>
                   ))}
                 </div>
               )}

@@ -17,7 +17,11 @@ export async function GET() {
           include: {
             projects: {
               include: {
-                boards: true,
+                boards: {
+                  include: {
+                    members: true,
+                  }
+                },
               },
             },
             license: {
@@ -30,14 +34,28 @@ export async function GET() {
       },
     });
 
-    const organizations = memberships.map((m) => ({
-      id: m.organization.id,
-      name: m.organization.name,
-      timezone: m.organization.timezone,
-      role: m.role,
-      projects: m.organization.projects,
-      license: m.organization.license,
-    }));
+    const organizations = memberships.map((m) => {
+      // If user is ADMIN, they see all boards. Otherwise, filter by their boardMembers.
+      const isOrgAdmin = m.role === "ADMIN";
+
+      const filteredProjects = m.organization.projects.map(proj => {
+        return {
+          ...proj,
+          boards: isOrgAdmin 
+            ? proj.boards 
+            : proj.boards.filter(b => b.members.some(member => member.userId === user.id))
+        };
+      });
+
+      return {
+        id: m.organization.id,
+        name: m.organization.name,
+        timezone: m.organization.timezone,
+        role: m.role,
+        projects: filteredProjects,
+        license: m.organization.license,
+      };
+    });
 
     return NextResponse.json({ organizations });
   } catch (error: any) {

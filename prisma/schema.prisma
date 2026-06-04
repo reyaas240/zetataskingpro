@@ -81,6 +81,8 @@ model User {
   reportedTasks  Task[]      @relation("Reporter")
   assignedTasks  Task[]      @relation("Assignee")
   boardAdmins    BoardAdmin[]
+  boardMembers   BoardMember[]
+  watchedTasks   TaskWatcher[]
   comments       Comment[]
   notifications  Notification[]
 }
@@ -137,6 +139,7 @@ model Board {
 
   columns        BoardColumn[]
   admins         BoardAdmin[]
+  members        BoardMember[]
   epics          Epic[]
   sprints        Sprint[]
   tasks          Task[]
@@ -159,6 +162,17 @@ model BoardAdmin {
   board          Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+}
+
+model BoardMember {
+  id             String       @id @default(uuid())
+  boardId        String
+  board          Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
 
   @@unique([boardId, userId])
 }
@@ -229,8 +243,20 @@ model Task {
 
   attachments    Attachment[]
   comments       Comment[]
+  watchers       TaskWatcher[]
   outgoingLinks  TaskLink[]   @relation("OutgoingLinks")
   incomingLinks  TaskLink[]   @relation("IncomingLinks")
+}
+
+model TaskWatcher {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, userId])
 }
 
 model Attachment {

@@ -46,6 +46,7 @@ export default function BoardWorkspacePage() {
   const [taskSprintId, setTaskSprintId] = useState("");
   const [taskEpicId, setTaskEpicId] = useState("");
   const [taskAssigneeId, setTaskAssigneeId] = useState("");
+  const [taskWatcherIds, setTaskWatcherIds] = useState<string[]>([]);
   const [createTaskLoading, setCreateTaskLoading] = useState(false);
   const [createTaskEditorKey, setCreateTaskEditorKey] = useState(0); // force remount on reset
 
@@ -117,7 +118,12 @@ export default function BoardWorkspacePage() {
       const membersRes = await fetch(`/api/organizations/members?organizationId=${orgId}`);
       if (membersRes.ok) {
         const membersData = await membersRes.json();
-        setMembers(membersData.members);
+        // Filter members to only those assigned to this board, or Admins who have access to all
+        const boardMembers = membersData.members.filter((m: any) => 
+          m.role === "ADMIN" || 
+          m.user.boardMembers?.some((bm: any) => bm.boardId === boardId)
+        );
+        setMembers(boardMembers);
       }
     } catch (e) {
       console.error(e);
@@ -308,6 +314,7 @@ export default function BoardWorkspacePage() {
           sprintId: taskSprintId || undefined,
           epicId: taskEpicId || undefined,
           assigneeId: taskAssigneeId || undefined,
+          watcherIds: taskWatcherIds,
         }),
       });
 
@@ -315,7 +322,9 @@ export default function BoardWorkspacePage() {
         setTaskTitle("");
         setTaskDesc("");
         setTaskPoints("");
-        setCreateTaskEditorKey((k) => k + 1); // Reset TipTap editor
+        setTaskAssigneeId("");
+        setTaskWatcherIds([]);
+        setCreateTaskEditorKey(prev => prev + 1); // Reset TipTap editor
         setShowCreateTask(false);
         fetchTasks();
       } else {
@@ -1380,6 +1389,35 @@ export default function BoardWorkspacePage() {
                       <option value="">None</option>
                       {epics.map((epic) => (
                         <option key={epic.id} value={epic.id}>{epic.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Watchers</label>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+                      {taskWatcherIds.map(watcherId => {
+                        const m = members.find(m => m.user.id === watcherId);
+                        if (!m) return null;
+                        return (
+                          <div key={watcherId} style={{ display: "flex", alignItems: "center", gap: 4, backgroundColor: "var(--background-secondary)", border: "1px solid var(--border-color)", padding: "2px 8px", borderRadius: 12, fontSize: 11 }}>
+                            <span>{m.user.name}</span>
+                            <button type="button" onClick={() => setTaskWatcherIds(prev => prev.filter(id => id !== watcherId))} style={{ background: "none", color: "var(--text-tertiary)", cursor: "pointer", fontSize: 12, marginLeft: 2 }}>✕</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <select 
+                      value=""
+                      onChange={(e) => {
+                        if (e.target.value && !taskWatcherIds.includes(e.target.value)) {
+                          setTaskWatcherIds(prev => [...prev, e.target.value]);
+                        }
+                      }}
+                    >
+                      <option value="" disabled>+ Add Watcher</option>
+                      {members.filter(m => !taskWatcherIds.includes(m.user.id)).map((m) => (
+                        <option key={m.user.id} value={m.user.id}>{m.user.name}</option>
                       ))}
                     </select>
                   </div>

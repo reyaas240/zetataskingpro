@@ -57,6 +57,11 @@ export async function GET(req: Request) {
         reporter: { select: { id: true, name: true, email: true, avatarUrl: true } },
         epic: true,
         sprint: true,
+        watchers: {
+          include: {
+            user: { select: { id: true, name: true, avatarUrl: true, email: true } }
+          }
+        },
         comments: {
           include: {
             user: { select: { id: true, name: true, avatarUrl: true } },
@@ -100,6 +105,7 @@ export async function POST(req: Request) {
       sprintId,
       epicId,
       assigneeId,
+      watcherIds,
     } = body;
 
     if (!title || !projectId || !boardId || !columnId) {
@@ -160,6 +166,9 @@ export async function POST(req: Request) {
           epicId: epicId || null,
           reporterId: user.id,
           assigneeId: assigneeId || null,
+          watchers: watcherIds?.length > 0 ? {
+            create: watcherIds.map((id: string) => ({ userId: id }))
+          } : undefined,
         },
       });
 
@@ -202,6 +211,7 @@ export async function PUT(req: Request) {
       sprintId,
       epicId,
       assigneeId,
+      watcherIds,
       destinationIndex,
     } = body;
 
@@ -232,6 +242,24 @@ export async function PUT(req: Request) {
 
     if (!membership) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Handle watchers first if provided
+    if (watcherIds !== undefined) {
+      // Delete existing watchers
+      await db.taskWatcher.deleteMany({
+        where: { taskId }
+      });
+
+      // Create new watchers
+      if (watcherIds.length > 0) {
+        await db.taskWatcher.createMany({
+          data: watcherIds.map((id: string) => ({
+            taskId,
+            userId: id
+          }))
+        });
+      }
     }
 
     // Perform update

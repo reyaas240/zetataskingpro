@@ -25,6 +25,11 @@ export async function GET(req: Request) {
         epic: true,
         sprint: true,
         project: true,
+        watchers: {
+          include: {
+            user: { select: { id: true, name: true, avatarUrl: true, email: true } }
+          }
+        },
         comments: {
           include: {
             user: { select: { id: true, name: true, avatarUrl: true } },
