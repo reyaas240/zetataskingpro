@@ -39,6 +39,12 @@ export async function GET(req: Request) {
           },
           orderBy: { createdAt: "desc" },
         },
+        history: {
+          include: {
+            user: { select: { id: true, name: true, avatarUrl: true } },
+          },
+          orderBy: { createdAt: "desc" },
+        },
         attachments: true,
         outgoingLinks: { include: { targetTask: true } },
         incomingLinks: { include: { sourceTask: true } },

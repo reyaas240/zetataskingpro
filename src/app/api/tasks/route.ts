@@ -176,6 +176,17 @@ export async function POST(req: Request) {
         },
       });
 
+      // Create Task History entry for creation
+      await tx.taskHistory.create({
+        data: {
+          taskId: newTask.id,
+          userId: user.id,
+          field: "creation",
+          oldValue: null,
+          newValue: "Task created",
+        }
+      });
+
       return newTask;
     });
 
@@ -243,6 +254,7 @@ export async function PUT(req: Request) {
       where: { id: taskId },
       include: {
         project: true,
+        customFields: { include: { customField: true } },
       },
     });
 
@@ -295,6 +307,55 @@ export async function PUT(req: Request) {
           });
         }
       }
+    }
+
+    // Determine field changes for history
+    const historyEntries: any[] = [];
+
+    const checkField = (field: string, oldVal: any, newVal: any) => {
+      if (newVal !== undefined && oldVal !== newVal) {
+        historyEntries.push({
+          taskId,
+          userId: user.id,
+          field,
+          oldValue: oldVal ? String(oldVal) : null,
+          newValue: newVal ? String(newVal) : null,
+        });
+      }
+    };
+
+    checkField("title", task.title, title);
+    checkField("description", task.description, description);
+    checkField("taskType", task.taskType, taskType);
+    checkField("priority", task.priority, priority);
+    checkField("storyPoints", task.storyPoints, storyPoints ? parseInt(storyPoints) : null);
+    checkField("columnId", task.columnId, columnId);
+    checkField("sprintId", task.sprintId, sprintId || null);
+    checkField("epicId", task.epicId, epicId || null);
+    checkField("assigneeId", task.assigneeId, assigneeId || null);
+
+    // Handle custom field history
+    if (customFieldValues && typeof customFieldValues === "object") {
+      for (const [customFieldId, value] of Object.entries(customFieldValues)) {
+        const existingField = task.customFields.find((cf: any) => cf.customFieldId === customFieldId);
+        const oldVal = existingField ? existingField.value : null;
+        const newVal = value === "" || value === null || value === undefined ? null : String(value);
+
+        if (oldVal !== newVal) {
+          const cfName = existingField?.customField?.name || `Custom Field ${customFieldId}`;
+          historyEntries.push({
+            taskId,
+            userId: user.id,
+            field: cfName,
+            oldValue: oldVal,
+            newValue: newVal,
+          });
+        }
+      }
+    }
+
+    if (historyEntries.length > 0) {
+      await db.taskHistory.createMany({ data: historyEntries });
     }
 
     // Perform update

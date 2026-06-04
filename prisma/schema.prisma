@@ -84,6 +84,7 @@ model User {
   boardMembers   BoardMember[]
   watchedTasks   TaskWatcher[]
   comments       Comment[]
+  history        TaskHistory[]
   notifications  Notification[]
 }
 
@@ -246,6 +247,7 @@ model Task {
   comments       Comment[]
   watchers       TaskWatcher[]
   customFields   TaskCustomFieldValue[]
+  history        TaskHistory[]
   outgoingLinks  TaskLink[]   @relation("OutgoingLinks")
   incomingLinks  TaskLink[]   @relation("IncomingLinks")
 }
@@ -259,6 +261,20 @@ model TaskWatcher {
   createdAt DateTime @default(now())
 
   @@unique([taskId, userId])
+}
+
+model TaskHistory {
+  id        String   @id @default(uuid())
+  taskId    String
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  field     String   // e.g. "title", "description", "status", "assignee", "creation"
+  oldValue  String?  @db.Text // The previous value
+  newValue  String?  @db.Text // The updated value
+  
+  createdAt DateTime @default(now())
 }
 
 model Attachment {

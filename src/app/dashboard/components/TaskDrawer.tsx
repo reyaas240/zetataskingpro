@@ -59,6 +59,7 @@ export default function TaskDrawer({
   // Comments state
   const [commentContent, setCommentContent] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
+  const [activityTab, setActivityTab] = useState<"comments" | "history">("comments");
 
   // Lightbox preview state
   const [previewImage, setPreviewImage] = useState<{ url: string; name: string } | null>(null);
@@ -325,6 +326,45 @@ export default function TaskDrawer({
   const handleTitleBlur = () => {
     if (task && title.trim() && title !== task.title) {
       handleUpdateField("title", title);
+    }
+  };
+
+  const formatHistoryValue = (field: string, value: string | null) => {
+    if (!value) return "Unassigned/None";
+    if (field === "assigneeId") {
+      const member = orgMembers.find(m => m.user.id === value);
+      return member ? member.user.name : value;
+    }
+    if (field === "columnId") {
+      const col = boardColumns.find(c => c.id === value);
+      return col ? col.name : value;
+    }
+    if (field === "sprintId") {
+      const sprint = boardSprints.find(s => s.id === value);
+      return sprint ? sprint.name : value;
+    }
+    if (field === "epicId") {
+      const epic = boardEpics.find(e => e.id === value);
+      return epic ? epic.name : value;
+    }
+    if (field === "description") {
+      return "(updated)";
+    }
+    return value;
+  };
+
+  const formatHistoryField = (field: string) => {
+    switch (field) {
+      case "assigneeId": return "Assignee";
+      case "columnId": return "Status";
+      case "sprintId": return "Sprint";
+      case "epicId": return "Epic";
+      case "description": return "Description";
+      case "storyPoints": return "Story Points";
+      case "taskType": return "Task Type";
+      case "priority": return "Priority";
+      case "title": return "Title";
+      default: return field.charAt(0).toUpperCase() + field.slice(1);
     }
   };
 
@@ -598,37 +638,105 @@ export default function TaskDrawer({
                   )}
                 </div>
 
-                {/* Comments Stream */}
+                {/* Activity Stream */}
                 <div className="comment-section">
-                  <span className="detail-label">Comments</span>
-                  <form onSubmit={handleAddComment} className="comment-input-area">
-                    <textarea
-                      value={commentContent}
-                      onChange={(e) => setCommentContent(e.target.value)}
-                      placeholder="Add a comment..."
-                      rows={2}
-                      required
-                    ></textarea>
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 16, borderBottom: "1px solid var(--border-color)" }}>
                     <button
-                      type="submit"
-                      className="btn btn-primary"
-                      style={{ alignSelf: "flex-end", padding: "6px 16px", fontSize: 12 }}
-                      disabled={commentLoading}
+                      onClick={() => setActivityTab("comments")}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        borderBottom: activityTab === "comments" ? "2px solid var(--primary)" : "2px solid transparent",
+                        padding: "0 4px 8px 4px",
+                        fontSize: 12,
+                        fontWeight: activityTab === "comments" ? 700 : 500,
+                        color: activityTab === "comments" ? "var(--text-primary)" : "var(--text-secondary)",
+                        cursor: "pointer",
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                      }}
                     >
-                      {commentLoading ? "Adding..." : "Comment"}
+                      Comments
                     </button>
-                  </form>
+                    <button
+                      onClick={() => setActivityTab("history")}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        borderBottom: activityTab === "history" ? "2px solid var(--primary)" : "2px solid transparent",
+                        padding: "0 4px 8px 4px",
+                        fontSize: 12,
+                        fontWeight: activityTab === "history" ? 700 : 500,
+                        color: activityTab === "history" ? "var(--text-primary)" : "var(--text-secondary)",
+                        cursor: "pointer",
+                        textTransform: "uppercase",
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      History
+                    </button>
+                  </div>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}>
-                    {task?.comments?.map((comment: any) => (
-                      <div key={comment.id} className="comment-item">
-                        <div className="comment-meta">
-                          <strong style={{ color: "var(--text-primary)" }}>{comment.user.name}</strong>
-                          <span>{formatInTimezone(comment.createdAt, orgTimezone)}</span>
+                  {activityTab === "comments" && (
+                    <form onSubmit={handleAddComment} className="comment-input-area" style={{ marginBottom: 24 }}>
+                      <textarea
+                        value={commentContent}
+                        onChange={(e) => setCommentContent(e.target.value)}
+                        placeholder="Add a comment..."
+                        rows={2}
+                        required
+                      ></textarea>
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        style={{ alignSelf: "flex-end", padding: "6px 16px", fontSize: 12 }}
+                        disabled={commentLoading}
+                      >
+                        {commentLoading ? "Adding..." : "Comment"}
+                      </button>
+                    </form>
+                  )}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {task && activityTab === "comments" && (task.comments || [])
+                      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .map((item: any) => (
+                        <div key={`comment-${item.id}`} className="comment-item">
+                          <div className="comment-meta">
+                            <strong style={{ color: "var(--text-primary)" }}>{item.user.name}</strong>
+                            <span>{formatInTimezone(item.createdAt, orgTimezone)}</span>
+                          </div>
+                          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{item.content}</div>
                         </div>
-                        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>{comment.content}</div>
-                      </div>
-                    ))}
+                      ))
+                    }
+                    {task && activityTab === "history" && (task.history || [])
+                      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                      .map((item: any) => (
+                        <div key={`history-${item.id}`} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-tertiary)" }}>
+                          <div style={{ width: 24, height: 24, borderRadius: "50%", backgroundColor: "var(--background-secondary)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10 }}>
+                            🕒
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <strong style={{ color: "var(--text-secondary)" }}>{item.user.name}</strong>
+                            {item.field === "creation" ? (
+                              <span> created the task</span>
+                            ) : (
+                              <span>
+                                {" "}changed <strong style={{ color: "var(--text-secondary)" }}>{formatHistoryField(item.field)}</strong>
+                                {item.field === "description" ? "" : (
+                                  <>
+                                    {item.oldValue ? ` from ${formatHistoryValue(item.field, item.oldValue)}` : ""}
+                                    {item.newValue ? ` to ${formatHistoryValue(item.field, item.newValue)}` : " (cleared)"}
+                                  </>
+                                )}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 11 }}>{formatInTimezone(item.createdAt, orgTimezone)}</div>
+                        </div>
+                      ))
+                    }
                   </div>
                 </div>
 
