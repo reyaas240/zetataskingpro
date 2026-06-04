@@ -30,6 +30,9 @@ export async function GET(req: Request) {
             user: { select: { id: true, name: true, avatarUrl: true, email: true } }
           }
         },
+        customFields: {
+          include: { customField: true }
+        },
         comments: {
           include: {
             user: { select: { id: true, name: true, avatarUrl: true } },

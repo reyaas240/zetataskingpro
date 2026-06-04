@@ -49,6 +49,14 @@ export default function BoardWorkspacePage() {
   const [taskWatcherIds, setTaskWatcherIds] = useState<string[]>([]);
   const [createTaskLoading, setCreateTaskLoading] = useState(false);
   const [createTaskEditorKey, setCreateTaskEditorKey] = useState(0); // force remount on reset
+  const [taskCustomFieldValues, setTaskCustomFieldValues] = useState<Record<string, string>>({}); // { [customFieldId]: value }
+
+  // Custom Fields
+  const [projectCustomFields, setProjectCustomFields] = useState<any[]>([]);
+  const [newFieldName, setNewFieldName] = useState("");
+  const [newFieldType, setNewFieldType] = useState("TEXT");
+  const [newFieldOptions, setNewFieldOptions] = useState(""); // comma-separated for DROPDOWN
+  const [fieldLoading, setFieldLoading] = useState(false);
 
   // Epic Form
   const [epicName, setEpicName] = useState("");
@@ -124,6 +132,13 @@ export default function BoardWorkspacePage() {
           m.user.boardMembers?.some((bm: any) => bm.boardId === boardId)
         );
         setMembers(boardMembers);
+      }
+
+      // 6. Load Custom Fields
+      const cfRes = await fetch(`/api/projects/custom-fields?projectId=${projectId}`);
+      if (cfRes.ok) {
+        const cfData = await cfRes.json();
+        setProjectCustomFields(cfData.customFields || []);
       }
     } catch (e) {
       console.error(e);
@@ -315,6 +330,7 @@ export default function BoardWorkspacePage() {
           epicId: taskEpicId || undefined,
           assigneeId: taskAssigneeId || undefined,
           watcherIds: taskWatcherIds,
+          customFieldValues: taskCustomFieldValues,
         }),
       });
 
@@ -324,6 +340,7 @@ export default function BoardWorkspacePage() {
         setTaskPoints("");
         setTaskAssigneeId("");
         setTaskWatcherIds([]);
+        setTaskCustomFieldValues({});
         setCreateTaskEditorKey(prev => prev + 1); // Reset TipTap editor
         setShowCreateTask(false);
         fetchTasks();
@@ -1191,6 +1208,108 @@ export default function BoardWorkspacePage() {
               </div>
             </div>
           )}
+
+          {/* Project Custom Fields */}
+          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 32, alignItems: "start" }}>
+            <div className="card">
+              <h3 className="card-title" style={{ marginBottom: 16 }}>Project Custom Fields</h3>
+              <p style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 16 }}>
+                These fields apply to all tasks across <strong>every board</strong> in this project.
+              </p>
+              {projectCustomFields.length === 0 ? (
+                <p style={{ color: "var(--text-secondary)", fontSize: 13 }}>No custom fields defined yet.</p>
+              ) : (
+                <div className="admin-table-container">
+                  <table className="admin-table">
+                    <thead>
+                      <tr><th>Field Name</th><th>Type</th><th>Options</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                      {projectCustomFields.map((f: any) => (
+                        <tr key={f.id}>
+                          <td><strong>{f.name}</strong></td>
+                          <td><span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 8, background: "var(--background-secondary)", border: "1px solid var(--border-color)" }}>{f.type}</span></td>
+                          <td style={{ fontSize: 12, color: "var(--text-tertiary)" }}>
+                            {f.type === "DROPDOWN" && f.options ? JSON.parse(f.options).join(", ") : "—"}
+                          </td>
+                          <td>
+                            {selectedOrg?.role === "ADMIN" && (
+                              <button
+                                onClick={async () => {
+                                  if (!confirm(`Delete field "${f.name}"? All task values will be lost.`)) return;
+                                  const res = await fetch(`/api/projects/custom-fields?customFieldId=${f.id}`, { method: "DELETE" });
+                                  if (res.ok) {
+                                    setProjectCustomFields(prev => prev.filter(cf => cf.id !== f.id));
+                                  }
+                                }}
+                                style={{ background: "none", color: "var(--danger)", fontSize: 12 }}
+                              >Delete</button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {selectedOrg?.role === "ADMIN" && (
+              <div className="card">
+                <h3 className="card-title" style={{ marginBottom: 16 }}>Add Custom Field</h3>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setFieldLoading(true);
+                    try {
+                      const options = newFieldType === "DROPDOWN"
+                        ? newFieldOptions.split(",").map((o) => o.trim()).filter(Boolean)
+                        : undefined;
+                      const res = await fetch("/api/projects/custom-fields", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ projectId, name: newFieldName, type: newFieldType, options }),
+                      });
+                      if (res.ok) {
+                        const data = await res.json();
+                        setProjectCustomFields(prev => [...prev, data.customField]);
+                        setNewFieldName("");
+                        setNewFieldType("TEXT");
+                        setNewFieldOptions("");
+                      }
+                    } finally {
+                      setFieldLoading(false);
+                    }
+                  }}
+                  style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 12 }}
+                >
+                  <div className="form-group">
+                    <label className="form-label">Field Name</label>
+                    <input type="text" value={newFieldName} onChange={(e) => setNewFieldName(e.target.value)} required placeholder="E.g. Customer Name" />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Field Type</label>
+                    <select value={newFieldType} onChange={(e) => setNewFieldType(e.target.value)}>
+                      <option value="TEXT">📝 Text</option>
+                      <option value="NUMBER">🔢 Number</option>
+                      <option value="DROPDOWN">📋 Dropdown</option>
+                      <option value="DATE">📅 Date</option>
+                      <option value="CHECKBOX">✅ Checkbox</option>
+                    </select>
+                  </div>
+                  {newFieldType === "DROPDOWN" && (
+                    <div className="form-group">
+                      <label className="form-label">Options (comma-separated)</label>
+                      <input type="text" value={newFieldOptions} onChange={(e) => setNewFieldOptions(e.target.value)} placeholder="Option A, Option B, Option C" />
+                    </div>
+                  )}
+                  <button type="submit" className="btn btn-primary" disabled={fieldLoading}>
+                    {fieldLoading ? "Adding..." : "Add Field"}
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -1206,6 +1325,7 @@ export default function BoardWorkspacePage() {
           orgMembers={members}
           orgTimezone={selectedOrg?.timezone || "UTC"}
           projectId={projectId}
+          projectCustomFields={projectCustomFields}
         />
       )}
 
@@ -1426,6 +1546,43 @@ export default function BoardWorkspacePage() {
                     <label className="form-label">Story Points</label>
                     <input type="number" value={taskPoints} onChange={(e) => setTaskPoints(e.target.value)} min="0" placeholder="E.g. 5" />
                   </div>
+
+                  {/* Dynamic Custom Fields */}
+                  {projectCustomFields.length > 0 && (
+                    <>
+                      <div style={{ borderTop: "1px solid var(--border-color)", paddingTop: 12, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5 }}>Custom Fields</span>
+                      </div>
+                      {projectCustomFields.map((field: any) => (
+                        <div className="form-group" key={field.id}>
+                          <label className="form-label">{field.name}</label>
+                          {field.type === "TEXT" && (
+                            <input type="text" value={taskCustomFieldValues[field.id] || ""} onChange={(e) => setTaskCustomFieldValues(prev => ({ ...prev, [field.id]: e.target.value }))} placeholder={`Enter ${field.name}`} />
+                          )}
+                          {field.type === "NUMBER" && (
+                            <input type="number" value={taskCustomFieldValues[field.id] || ""} onChange={(e) => setTaskCustomFieldValues(prev => ({ ...prev, [field.id]: e.target.value }))} placeholder="0" />
+                          )}
+                          {field.type === "DATE" && (
+                            <input type="date" value={taskCustomFieldValues[field.id] || ""} onChange={(e) => setTaskCustomFieldValues(prev => ({ ...prev, [field.id]: e.target.value }))} />
+                          )}
+                          {field.type === "CHECKBOX" && (
+                            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                              <input type="checkbox" checked={taskCustomFieldValues[field.id] === "true"} onChange={(e) => setTaskCustomFieldValues(prev => ({ ...prev, [field.id]: e.target.checked ? "true" : "false" }))} />
+                              <span style={{ fontSize: 13 }}>{field.name}</span>
+                            </label>
+                          )}
+                          {field.type === "DROPDOWN" && field.options && (
+                            <select value={taskCustomFieldValues[field.id] || ""} onChange={(e) => setTaskCustomFieldValues(prev => ({ ...prev, [field.id]: e.target.value }))}>
+                              <option value="">— Select —</option>
+                              {JSON.parse(field.options).map((opt: string) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
 
               </div>

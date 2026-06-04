@@ -125,6 +125,7 @@ model Project {
 
   boards         Board[]
   tasks          Task[]
+  customFields   CustomField[]
 
   @@unique([organizationId, key])
 }
@@ -244,6 +245,7 @@ model Task {
   attachments    Attachment[]
   comments       Comment[]
   watchers       TaskWatcher[]
+  customFields   TaskCustomFieldValue[]
   outgoingLinks  TaskLink[]   @relation("OutgoingLinks")
   incomingLinks  TaskLink[]   @relation("IncomingLinks")
 }
@@ -268,6 +270,37 @@ model Attachment {
   taskId         String
   task           Task         @relation(fields: [taskId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())
+}
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DROPDOWN
+  DATE
+  CHECKBOX
+}
+
+model CustomField {
+  id          String          @id @default(uuid())
+  projectId   String
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  type        CustomFieldType @default(TEXT)
+  options     String?         // JSON string for DROPDOWN options
+  createdAt   DateTime        @default(now())
+
+  taskValues  TaskCustomFieldValue[]
+}
+
+model TaskCustomFieldValue {
+  id            String      @id @default(uuid())
+  taskId        String
+  task          Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  customFieldId String
+  customField   CustomField @relation(fields: [customFieldId], references: [id], onDelete: Cascade)
+  value         String      @db.Text // Stored as string, parsed according to CustomFieldType
+  
+  @@unique([taskId, customFieldId])
 }
 
 model TaskLink {

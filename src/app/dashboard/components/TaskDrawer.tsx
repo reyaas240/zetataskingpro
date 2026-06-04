@@ -14,6 +14,7 @@ interface TaskDrawerProps {
   orgMembers: any[];
   orgTimezone: string;
   projectId: string;
+  projectCustomFields?: any[];
 }
 
 export default function TaskDrawer({
@@ -26,6 +27,7 @@ export default function TaskDrawer({
   orgMembers,
   orgTimezone,
   projectId,
+  projectCustomFields = [],
 }: TaskDrawerProps) {
   const [task, setTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +44,7 @@ export default function TaskDrawer({
   const [epicId, setEpicId] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
   const [watcherIds, setWatcherIds] = useState<string[]>([]);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, string>>({});
 
   // Attachments state
   const [uploadingFile, setUploadingFile] = useState(false);
@@ -140,6 +143,13 @@ export default function TaskDrawer({
         setEpicId(data.task.epicId || "");
         setAssigneeId(data.task.assigneeId || "");
         setWatcherIds(data.task.watchers?.map((w: any) => w.userId) || []);
+        
+        // Extract custom field values
+        const cfValues: Record<string, string> = {};
+        data.task.customFields?.forEach((cf: any) => {
+          cfValues[cf.customFieldId] = cf.value;
+        });
+        setCustomFieldValues(cfValues);
       } else {
         setError(data.error || "Failed to load task details.");
       }
@@ -186,6 +196,29 @@ export default function TaskDrawer({
       }
     } catch (e) {
       console.error("Failed to update task field:", e);
+    }
+  };
+
+  const handleUpdateCustomField = async (fieldId: string, value: string) => {
+    if (!taskId) return;
+    
+    // Optimistic UI update
+    setCustomFieldValues(prev => ({ ...prev, [fieldId]: value }));
+
+    try {
+      const res = await fetch("/api/tasks", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          taskId,
+          customFieldValues: { [fieldId]: value },
+        }),
+      });
+      if (res.ok) {
+        onUpdate();
+      }
+    } catch (e) {
+      console.error("Failed to update custom field:", e);
     }
   };
 
@@ -766,6 +799,79 @@ export default function TaskDrawer({
                   </div>
 
                   <hr style={{ border: 0, borderTop: "1px solid var(--border-color)", margin: 0 }} />
+
+                  {/* Custom Fields */}
+                  {projectCustomFields && projectCustomFields.length > 0 && (
+                    <>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                        {projectCustomFields.map((field: any) => (
+                          <div key={field.id}>
+                            <span className="detail-label" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-tertiary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 4, display: "block" }}>{field.name}</span>
+                            {field.type === "TEXT" && (
+                              <input
+                                type="text"
+                                className="filter-input w-full"
+                                value={customFieldValues[field.id] || ""}
+                                onChange={(e) => setCustomFieldValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                onBlur={(e) => handleUpdateCustomField(field.id, e.target.value)}
+                                placeholder="—"
+                              />
+                            )}
+                            {field.type === "NUMBER" && (
+                              <input
+                                type="number"
+                                className="filter-input w-full"
+                                value={customFieldValues[field.id] || ""}
+                                onChange={(e) => setCustomFieldValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                onBlur={(e) => handleUpdateCustomField(field.id, e.target.value)}
+                                placeholder="0"
+                              />
+                            )}
+                            {field.type === "DATE" && (
+                              <input
+                                type="date"
+                                className="filter-input w-full"
+                                value={customFieldValues[field.id] || ""}
+                                onChange={(e) => setCustomFieldValues(prev => ({ ...prev, [field.id]: e.target.value }))}
+                                onBlur={(e) => handleUpdateCustomField(field.id, e.target.value)}
+                              />
+                            )}
+                            {field.type === "CHECKBOX" && (
+                              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13, height: 32 }}>
+                                <input
+                                  type="checkbox"
+                                  checked={customFieldValues[field.id] === "true"}
+                                  onChange={(e) => {
+                                    const val = e.target.checked ? "true" : "false";
+                                    setCustomFieldValues(prev => ({ ...prev, [field.id]: val }));
+                                    handleUpdateCustomField(field.id, val);
+                                  }}
+                                />
+                                Yes
+                              </label>
+                            )}
+                            {field.type === "DROPDOWN" && field.options && (
+                              <select
+                                className="filter-select w-full"
+                                value={customFieldValues[field.id] || ""}
+                                onChange={(e) => {
+                                  setCustomFieldValues(prev => ({ ...prev, [field.id]: e.target.value }));
+                                  handleUpdateCustomField(field.id, e.target.value);
+                                }}
+                              >
+                                <option value="">— Select —</option>
+                                {JSON.parse(field.options).map((opt: string) => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      <hr style={{ border: 0, borderTop: "1px solid var(--border-color)", margin: 0 }} />
+                    </>
+                  )}
 
                   {/* Dates */}
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

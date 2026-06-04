@@ -62,6 +62,9 @@ export async function GET(req: Request) {
             user: { select: { id: true, name: true, avatarUrl: true, email: true } }
           }
         },
+        customFields: {
+          include: { customField: true }
+        },
         comments: {
           include: {
             user: { select: { id: true, name: true, avatarUrl: true } },
@@ -106,6 +109,7 @@ export async function POST(req: Request) {
       epicId,
       assigneeId,
       watcherIds,
+      customFieldValues,
     } = body;
 
     if (!title || !projectId || !boardId || !columnId) {
@@ -175,6 +179,21 @@ export async function POST(req: Request) {
       return newTask;
     });
 
+    // Create custom field values
+    if (customFieldValues && typeof customFieldValues === "object") {
+      const entries = Object.entries(customFieldValues).filter(([, v]) => v !== "" && v !== null && v !== undefined);
+      if (entries.length > 0) {
+        await db.taskCustomFieldValue.createMany({
+          data: entries.map(([customFieldId, value]) => ({
+            taskId: task.id,
+            customFieldId,
+            value: String(value),
+          })),
+          skipDuplicates: true,
+        });
+      }
+    }
+
     // Notify assignee if task was assigned to someone else
     if (task.assigneeId && task.assigneeId !== user.id) {
       await createNotification({
@@ -212,6 +231,7 @@ export async function PUT(req: Request) {
       epicId,
       assigneeId,
       watcherIds,
+      customFieldValues,
       destinationIndex,
     } = body;
 
@@ -259,6 +279,21 @@ export async function PUT(req: Request) {
             userId: id
           }))
         });
+      }
+    }
+
+    // Handle custom field values if provided
+    if (customFieldValues && typeof customFieldValues === "object") {
+      for (const [customFieldId, value] of Object.entries(customFieldValues)) {
+        if (value === "" || value === null || value === undefined) {
+          await db.taskCustomFieldValue.deleteMany({ where: { taskId, customFieldId } });
+        } else {
+          await db.taskCustomFieldValue.upsert({
+            where: { taskId_customFieldId: { taskId, customFieldId } },
+            create: { taskId, customFieldId, value: String(value) },
+            update: { value: String(value) },
+          });
+        }
       }
     }
 
