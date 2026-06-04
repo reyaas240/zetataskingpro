@@ -82,9 +82,11 @@ export async function sendInvitationEmail(
   email: string,
   token: string,
   otpCode: string,
-  orgName: string
+  orgName: string,
+  baseUrl?: string
 ): Promise<{ success: boolean; loggedToConsole: boolean }> {
-  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:6001"}/invite?token=${token}`;
+  const origin = baseUrl || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:6001";
+  const inviteUrl = `${origin}/invite?token=${token}`;
   
   console.log(`[DEVELOPER MODE - INVITE DISPATCH] email=${email} orgName=${orgName} inviteUrl=${inviteUrl} otp=${otpCode}`);
   

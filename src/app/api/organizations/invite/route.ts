@@ -124,11 +124,15 @@ export async function POST(req: Request) {
     });
 
     // Send email with invitation link
+    const url = new URL(req.url);
+    const origin = url.origin;
+
     const mailResult = await sendInvitationEmail(
       emailLower,
       token,
       otpCode,
-      org.name
+      org.name,
+      origin
     );
 
     return NextResponse.json({
