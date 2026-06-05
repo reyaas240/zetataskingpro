@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createNotification } from "@/lib/notifications";
+import { sendTaskAssignmentEmail } from "@/lib/email";
 
 // GET: Fetch tasks with optional filters (sprint, epic, assignee, search)
 export async function GET(req: Request) {
@@ -205,15 +206,21 @@ export async function POST(req: Request) {
       }
     }
 
-    // Notify assignee if task was assigned to someone else
-    if (task.assigneeId && task.assigneeId !== user.id) {
-      await createNotification({
-        userId: task.assigneeId,
-        title: "New Task Assigned",
-        message: `${user.name} assigned you the task: ${task.code} - ${task.title}`,
-        taskId: task.id,
-      });
-    }
+      // Notify assignee if task was assigned to someone else
+      if (task.assigneeId && task.assigneeId !== user.id) {
+        // In-app notification
+        await createNotification({
+          userId: task.assigneeId,
+          title: "New Task Assigned",
+          message: `${user.name} assigned you the task: ${task.code} - ${task.title}`,
+          taskId: task.id,
+        });
+        // Email notification
+        const assignee = await db.user.findUnique({ where: { id: task.assigneeId }, select: { email: true } });
+        if (assignee?.email) {
+          await sendTaskAssignmentEmail(assignee.email, { code: task.code, title: task.title, description: task.description });
+        }
+      }
 
     return NextResponse.json({ success: true, task });
   } catch (error: any) {

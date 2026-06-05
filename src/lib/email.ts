@@ -137,3 +137,43 @@ export async function sendInvitationEmail(
     return { success: true, loggedToConsole: true };
   }
 }
+export async function sendTaskAssignmentEmail(email: string, task: { code: string; title: string; description?: string }): Promise<{ success: boolean; loggedToConsole: boolean }> {
+  const mailDetails = await getTransporter();
+  if (!mailDetails) {
+    console.log(`\n==================================================`);
+    console.log(`📨 [TASK ASSIGNMENT EMAIL FALLBACK]`);
+    console.log(`To: ${email}`);
+    console.log(`Task: ${task.code} - ${task.title}`);
+    console.log(`==================================================\n`);
+    return { success: true, loggedToConsole: true };
+  }
+  try {
+    const { transporter, from } = mailDetails;
+    await transporter.sendMail({
+      from,
+      to: email,
+      subject: `[Zeta TaskingPro] New Task Assigned: ${task.code}`,
+      text: `You have been assigned a new task:\n\nCode: ${task.code}\nTitle: ${task.title}\nDescription: ${task.description || ""}`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; color: #333;">
+          <h2>New Task Assigned</h2>
+          <p>You have been assigned a new task:</p>
+          <ul>
+            <li><strong>Code:</strong> ${task.code}</li>
+            <li><strong>Title:</strong> ${task.title}</li>
+            ${task.description ? `<li><strong>Description:</strong> ${task.description}</li>` : ''}
+          </ul>
+        </div>
+      `,
+    });
+    return { success: true, loggedToConsole: false };
+  } catch (error) {
+    console.error("Failed to send task assignment email, fallback to console", error);
+    console.log(`\n==================================================`);
+    console.log(`📨 [TASK ASSIGNMENT EMAIL FALLBACK - ERROR]`);
+    console.log(`To: ${email}`);
+    console.log(`Task: ${task.code} - ${task.title}`);
+    console.log(`==================================================\n`);
+    return { success: true, loggedToConsole: true };
+  }
+}
