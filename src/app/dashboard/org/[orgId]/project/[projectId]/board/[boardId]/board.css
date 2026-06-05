@@ -225,6 +225,8 @@
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius-lg);
   overflow: hidden;
+  flex-shrink: 0;
+  height: auto;
 }
 
 .sprint-header {
