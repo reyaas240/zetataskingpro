@@ -506,21 +506,15 @@ export default function BoardWorkspacePage() {
     }
   };
 
-  // Filter Tasks for Kanban
-  const getFilteredTasks = () => {
-    let activeSprint = sprints.find((s) => s.status === "ACTIVE");
-    
+  // Base Filter applied to both Kanban and Backlog/Sprints
+  const getBaseFilteredTasks = () => {
     return tasks.filter((t) => {
-      // 1. Standard filter by Active Sprint (only active sprint tasks shown on board)
-      if (t.sprintId !== (activeSprint?.id || null)) return false;
-      
-      // 2. Filter by Epic
       if (filterEpic && t.epicId !== filterEpic) return false;
-
-      // 3. Filter by Assignee
-      if (filterAssignee && t.assigneeId !== filterAssignee) return false;
-
-      // 4. Filter by Search Query
+      if (filterAssignee === "unassigned") {
+        if (t.assigneeId !== null) return false;
+      } else if (filterAssignee && t.assigneeId !== filterAssignee) {
+        return false;
+      }
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return (
@@ -528,7 +522,6 @@ export default function BoardWorkspacePage() {
           t.code.toLowerCase().includes(query)
         );
       }
-
       return true;
     });
   };
@@ -541,8 +534,9 @@ export default function BoardWorkspacePage() {
     );
   }
 
-  const filteredTasks = getFilteredTasks();
+  const baseFilteredTasks = getBaseFilteredTasks();
   const activeSprint = sprints.find((s) => s.status === "ACTIVE");
+  const filteredTasks = baseFilteredTasks.filter((t) => t.sprintId === (activeSprint?.id || null));
 
   return (
     <div className="board-workspace">
@@ -578,46 +572,49 @@ export default function BoardWorkspacePage() {
         </button>
       </div>
 
+      {/* Filters Bar for Kanban and Backlog */}
+      {(activeTab === "kanban" || activeTab === "backlog") && (
+        <div className="board-filters" style={{ marginBottom: activeTab === "backlog" ? 16 : 0 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>Filters:</span>
+          <select value={filterEpic} onChange={(e) => setFilterEpic(e.target.value)} className="filter-select">
+            <option value="">All Epics</option>
+            {epics.map((e) => (
+              <option key={e.id} value={e.id}>{e.name}</option>
+            ))}
+          </select>
+          <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} className="filter-select">
+            <option value="">All Assignees</option>
+            <option value="unassigned">Unassigned</option>
+            {members.map((m) => (
+              <option key={m.user.id} value={m.user.id}>{m.user.name}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            placeholder="Search by code/title..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ width: 200, padding: "4px 10px" }}
+          />
+          {(filterEpic || filterAssignee || searchQuery) && (
+            <button
+              onClick={() => {
+                setFilterEpic("");
+                setFilterAssignee("");
+                setSearchQuery("");
+              }}
+              className="btn-link"
+              style={{ fontSize: 12, color: "var(--danger)", background: "none" }}
+            >
+              Clear Filters
+            </button>
+          )}
+        </div>
+      )}
+
       {/* 1. KANBAN TAB */}
       {activeTab === "kanban" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 16, flex: 1, overflow: "hidden" }}>
-          {/* Filters Bar */}
-          <div className="board-filters">
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)" }}>Filters:</span>
-            <select value={filterEpic} onChange={(e) => setFilterEpic(e.target.value)} className="filter-select">
-              <option value="">All Epics</option>
-              {epics.map((e) => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-            <select value={filterAssignee} onChange={(e) => setFilterAssignee(e.target.value)} className="filter-select">
-              <option value="">All Assignees</option>
-              <option value="unassigned">Unassigned</option>
-              {members.map((m) => (
-                <option key={m.user.id} value={m.user.id}>{m.user.name}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              placeholder="Search by code/title..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ width: 200, padding: "4px 10px" }}
-            />
-            {(filterEpic || filterAssignee || searchQuery) && (
-              <button
-                onClick={() => {
-                  setFilterEpic("");
-                  setFilterAssignee("");
-                  setSearchQuery("");
-                }}
-                className="btn-link"
-                style={{ fontSize: 12, color: "var(--danger)", background: "none" }}
-              >
-                Clear Filters
-              </button>
-            )}
-          </div>
 
           {!activeSprint ? (
             <div className="card" style={{ textAlign: "center", padding: "60px 20px" }}>
@@ -714,7 +711,7 @@ export default function BoardWorkspacePage() {
 
             {/* Sprints lists */}
             {sprints.map((sprint) => {
-              const sprintTasks = tasks.filter((t) => t.sprintId === sprint.id);
+              const sprintTasks = baseFilteredTasks.filter((t) => t.sprintId === sprint.id);
               const totalPoints = sprintTasks.reduce((sum, t) => sum + (t.storyPoints || 0), 0);
               
               return (
@@ -787,6 +784,21 @@ export default function BoardWorkspacePage() {
                                   </span>
                                   <strong style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{t.code}</strong>
                                   <span style={{ fontSize: 13, fontWeight: 500 }}>{t.title}</span>
+                                  {t.columnId && (
+                                    <span className="badge" style={{ fontSize: 9, backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)" }}>
+                                      {columns.find((c) => c.id === t.columnId)?.name}
+                                    </span>
+                                  )}
+                                  {t.assignee && (
+                                    <span className="badge" style={{ fontSize: 9, backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 4 }}>
+                                      {t.assignee.avatarUrl ? (
+                                        <img src={t.assignee.avatarUrl} alt="" style={{ width: 12, height: 12, borderRadius: "50%" }} />
+                                      ) : (
+                                        <span style={{ fontSize: 10 }}>👤</span>
+                                      )}
+                                      {t.assignee.name}
+                                    </span>
+                                  )}
                                 </div>
                                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                                   {t.epic && (
@@ -839,7 +851,7 @@ export default function BoardWorkspacePage() {
                         No tasks in backlog. Create a task to add items.
                       </p>
                     )}
-                    {tasks.filter((t) => !t.sprintId).map((t, idx) => (
+                    {baseFilteredTasks.filter((t) => !t.sprintId).map((t, idx) => (
                       <Draggable key={t.id} draggableId={t.id} index={idx}>
                         {(provided, snapshot) => (
                           <div
@@ -859,6 +871,21 @@ export default function BoardWorkspacePage() {
                               </span>
                               <strong style={{ fontSize: 12, color: "var(--text-tertiary)" }}>{t.code}</strong>
                               <span style={{ fontSize: 13, fontWeight: 500 }}>{t.title}</span>
+                              {t.columnId && (
+                                <span className="badge" style={{ fontSize: 9, backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)" }}>
+                                  {columns.find((c) => c.id === t.columnId)?.name}
+                                </span>
+                              )}
+                              {t.assignee && (
+                                <span className="badge" style={{ fontSize: 9, backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 4 }}>
+                                  {t.assignee.avatarUrl ? (
+                                    <img src={t.assignee.avatarUrl} alt="" style={{ width: 12, height: 12, borderRadius: "50%" }} />
+                                  ) : (
+                                    <span style={{ fontSize: 10 }}>👤</span>
+                                  )}
+                                  {t.assignee.name}
+                                </span>
+                              )}
                             </div>
                             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                               {t.epic && (
