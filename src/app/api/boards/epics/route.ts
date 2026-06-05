@@ -172,6 +172,14 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Ensure no tasks are assigned to this epic
+    const taskCount = await db.task.count({
+      where: { epicId },
+    });
+    if (taskCount > 0) {
+      return NextResponse.json({ error: "Epic cannot be deleted because it has assigned tasks" }, { status: 400 });
+    }
+
     // Delete epic. The tasks referencing this epic will have their epicId set to null automatically due to `setNull` relation.
     await db.epic.delete({
       where: { id: epicId },
