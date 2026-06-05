@@ -218,7 +218,10 @@ export async function POST(req: Request) {
         // Email notification
         const assignee = await db.user.findUnique({ where: { id: task.assigneeId }, select: { email: true } });
         if (assignee?.email) {
+          console.log(`[DEBUG] Sending assignment email to ${assignee.email} for task ${task.code}`);
           await sendTaskAssignmentEmail(assignee.email, { code: task.code, title: task.title, description: task.description });
+        } else {
+          console.log(`[WARN] Assignee email not found for user ID ${task.assigneeId}`);
         }
       }
 
