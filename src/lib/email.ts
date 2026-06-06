@@ -157,6 +157,8 @@ export async function sendTaskAssignmentEmail(
   
   try {
     const { transporter, from } = mailDetails;
+    console.log(`[DEBUG] Sending task assignment email to ${email}`);
+    console.log(`[DEBUG] Transporter options:`, transporter.options || transporter);
     await transporter.sendMail({
       from,
       to: email,
@@ -179,8 +181,8 @@ export async function sendTaskAssignmentEmail(
               <p style="margin: 0; color: #374151; font-size: 15px;"><strong>Title:</strong> ${task.title}</p>
             </div>
             
-            <a href="${appUrl}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px; font-size: 15px;">
-              View Dashboard
+            <a href="${origin}/dashboard/tasks/${task.code}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px; font-size: 15px;">
+              View Task
             </a>
             
             <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
@@ -195,7 +197,7 @@ export async function sendTaskAssignmentEmail(
   } catch (error) {
     console.error("Failed to send task assignment email, fallback to console", error);
     console.log(`\n==================================================`);
-    console.log(`📨 [TASK ASSIGNMENT EMAIL FALLBACK - ERROR]`);
+    console.log(`📨 [TASK ASSIGNMENT EMAIL FALLBACK - SEND FAIL ERROR]`);
     console.log(`To: ${email}`);
     console.log(`Task: ${task.code} - ${task.title}`);
     console.log(`==================================================\n`);
