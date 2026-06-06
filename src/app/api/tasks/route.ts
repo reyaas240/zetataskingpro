@@ -219,7 +219,10 @@ export async function POST(req: Request) {
         const assignee = await db.user.findUnique({ where: { id: task.assigneeId }, select: { email: true } });
         if (assignee?.email) {
           console.log(`[DEBUG] Sending assignment email to ${assignee.email} for task ${task.code}`);
-          await sendTaskAssignmentEmail(assignee.email, { code: task.code, title: task.title, description: task.description });
+          // Build base URL from request to ensure correct links in email
+        const requestUrl = new URL(req.url);
+        const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
+        await sendTaskAssignmentEmail(assignee.email, { code: task.code, title: task.title, description: task.description }, baseUrl);
         } else {
           console.log(`[WARN] Assignee email not found for user ID ${task.assigneeId}`);
         }
@@ -427,8 +430,12 @@ export async function PUT(req: Request) {
         // Email notification for task assignment update
         const assignee = await db.user.findUnique({ where: { id: updatedTask.assigneeId }, select: { email: true } });
         if (assignee?.email) {
+          // Build base URL from request to ensure correct links in email
+          const requestUrl = new URL(req.url);
+          const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`;
+          await sendTaskAssignmentEmail(assignee.email, { code: updatedTask.code, title: updatedTask.title, description: updatedTask.description }, baseUrl);
           console.log(`[DEBUG] Sending assignment email to ${assignee.email} for task ${updatedTask.code}`);
-          await sendTaskAssignmentEmail(assignee.email, { code: updatedTask.code, title: updatedTask.title, description: updatedTask.description });
+          // (removed, now handled above)
         }
       }
     } else {
