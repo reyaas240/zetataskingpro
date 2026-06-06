@@ -423,6 +423,13 @@ export async function PUT(req: Request) {
           message: `${user.name} assigned you the task: ${updatedTask.code} - ${updatedTask.title}`,
           taskId: updatedTask.id,
         });
+
+        // Email notification for task assignment update
+        const assignee = await db.user.findUnique({ where: { id: updatedTask.assigneeId }, select: { email: true } });
+        if (assignee?.email) {
+          console.log(`[DEBUG] Sending assignment email to ${assignee.email} for task ${updatedTask.code}`);
+          await sendTaskAssignmentEmail(assignee.email, { code: updatedTask.code, title: updatedTask.title, description: updatedTask.description });
+        }
       }
     } else {
       // General task update notification to assignee
