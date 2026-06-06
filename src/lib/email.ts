@@ -137,7 +137,14 @@ export async function sendInvitationEmail(
     return { success: true, loggedToConsole: true };
   }
 }
-export async function sendTaskAssignmentEmail(email: string, task: { code: string; title: string; description?: string }): Promise<{ success: boolean; loggedToConsole: boolean }> {
+export async function sendTaskAssignmentEmail(
+  email: string,
+  task: { code: string; title: string; description?: string | null },
+  baseUrl?: string
+): Promise<{ success: boolean; loggedToConsole: boolean }> {
+  const origin = baseUrl || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:6001";
+  const appUrl = `${origin}/dashboard`;
+  
   const mailDetails = await getTransporter();
   if (!mailDetails) {
     console.log(`\n==================================================`);
@@ -147,23 +154,41 @@ export async function sendTaskAssignmentEmail(email: string, task: { code: strin
     console.log(`==================================================\n`);
     return { success: true, loggedToConsole: true };
   }
+  
   try {
     const { transporter, from } = mailDetails;
     await transporter.sendMail({
       from,
       to: email,
       subject: `[Zeta TaskingPro] New Task Assigned: ${task.code}`,
-      text: `You have been assigned a new task:\n\nCode: ${task.code}\nTitle: ${task.title}\nDescription: ${task.description || ""}`,
+      text: `You have been assigned a new task on Zeta TaskingPro.\n\nCode: ${task.code}\nTitle: ${task.title}\n\nLogin to view details: ${appUrl}`,
       html: `
-        <div style="font-family: sans-serif; padding: 20px; color: #333;">
-          <h2>New Task Assigned</h2>
-          <p>You have been assigned a new task:</p>
-          <ul>
-            <li><strong>Code:</strong> ${task.code}</li>
-            <li><strong>Title:</strong> ${task.title}</li>
-            ${task.description ? `<li><strong>Description:</strong> ${task.description}</li>` : ''}
-          </ul>
-        </div>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+        </head>
+        <body style="margin: 0; padding: 0; background-color: #f9fafb; font-family: sans-serif;">
+          <div style="max-width: 600px; margin: 0 auto; padding: 20px; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px; margin-top: 20px;">
+            <h2 style="color: #111827; margin-top: 0; border-bottom: 1px solid #e5e7eb; padding-bottom: 12px;">Zeta TaskingPro</h2>
+            <p style="color: #4b5563; line-height: 1.6; font-size: 16px;">Hello,</p>
+            <p style="color: #4b5563; line-height: 1.6; font-size: 16px;">You have been assigned a new task.</p>
+            
+            <div style="background-color: #f3f4f6; padding: 16px; border-radius: 6px; margin: 20px 0; border-left: 4px solid #2563eb;">
+              <p style="margin: 0 0 8px 0; color: #374151; font-size: 15px;"><strong>Task Code:</strong> ${task.code}</p>
+              <p style="margin: 0; color: #374151; font-size: 15px;"><strong>Title:</strong> ${task.title}</p>
+            </div>
+            
+            <a href="${appUrl}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: #ffffff; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 10px; font-size: 15px;">
+              View Dashboard
+            </a>
+            
+            <p style="color: #9ca3af; font-size: 12px; margin-top: 30px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
+              This is an automated notification from Zeta TaskingPro. Please do not reply to this email.
+            </p>
+          </div>
+        </body>
+        </html>
       `,
     });
     return { success: true, loggedToConsole: false };
