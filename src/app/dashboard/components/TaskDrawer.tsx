@@ -371,7 +371,7 @@ export default function TaskDrawer({
   if (!taskId) return null;
 
   return (
-    <div className="drawer-overlay" onClick={onClose}>
+    <div className="drawer-overlay">
       <div className="drawer-card" onClick={(e) => e.stopPropagation()}>
         
         {/* Drawer Header */}
