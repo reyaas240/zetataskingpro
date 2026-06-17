@@ -176,3 +176,67 @@ export async function PUT(req: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+// DELETE: Delete a sprint
+export async function DELETE(req: Request) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const url = new URL(req.url);
+    const sprintId = url.searchParams.get("sprintId");
+
+    if (!sprintId) {
+      return NextResponse.json({ error: "sprintId is required" }, { status: 400 });
+    }
+
+    const sprint = await db.sprint.findUnique({
+      where: { id: sprintId },
+      include: {
+        board: {
+          include: {
+            project: true,
+          },
+        },
+        tasks: {
+          select: { id: true },
+        },
+      },
+    });
+
+    if (!sprint) {
+      return NextResponse.json({ error: "Sprint not found" }, { status: 404 });
+    }
+
+    // Verify membership and admin role
+    const membership = await db.organizationMember.findUnique({
+      where: {
+        organizationId_userId: {
+          organizationId: sprint.board.project.organizationId,
+          userId: user.id,
+        },
+      },
+    });
+
+    if (!membership || membership.role !== "ADMIN") {
+      return NextResponse.json({ error: "Forbidden. Only organization admins can delete sprints." }, { status: 403 });
+    }
+
+    // Verify no tasks are in the sprint
+    if (sprint.tasks.length > 0) {
+      return NextResponse.json({
+        error: "Cannot delete sprint. The sprint must be empty (no tasks) to be deleted.",
+      }, { status: 400 });
+    }
+
+    await db.sprint.delete({
+      where: { id: sprintId },
+    });
+
+    return NextResponse.json({ success: true, message: "Sprint deleted successfully" });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}

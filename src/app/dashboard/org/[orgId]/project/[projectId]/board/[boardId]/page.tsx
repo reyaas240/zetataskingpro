@@ -15,7 +15,7 @@ export default function BoardWorkspacePage() {
   const projectId = params?.projectId as string;
   const boardId = params?.boardId as string;
 
-  const { selectedOrg } = useWorkspace();
+  const { user, selectedOrg } = useWorkspace();
 
   const [board, setBoard] = useState<any>(null);
   const [columns, setColumns] = useState<any[]>([]);
@@ -23,6 +23,9 @@ export default function BoardWorkspacePage() {
   const [sprints, setSprints] = useState<any[]>([]);
   const [epics, setEpics] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
+
+  const currentUserMember = members.find((m) => m.user.id === user?.id);
+  const isCurrentUserAdmin = currentUserMember?.role === "ADMIN";
   
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("kanban"); // kanban, backlog, epics, settings
@@ -466,6 +469,32 @@ export default function BoardWorkspacePage() {
     }
   };
 
+  // Delete Sprint
+  const handleDeleteSprint = async (sprintId: string, taskCount: number) => {
+    if (taskCount > 0) {
+      alert("Cannot delete sprint. The sprint must be empty (no tasks) to be deleted.");
+      return;
+    }
+    if (!confirm("Are you sure you want to delete this sprint?")) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/boards/sprints?sprintId=${sprintId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        alert("Sprint deleted successfully");
+        fetchSprints();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to delete sprint");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred while deleting the sprint.");
+    }
+  };
+
   // Column CRUD
   const handleAddColumn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -727,7 +756,7 @@ export default function BoardWorkspacePage() {
                       </span>
                     </div>
                     
-                    <div className="sprint-action-buttons">
+                    <div className="sprint-action-buttons" style={{ display: "flex", gap: 8, alignItems: "center" }}>
                       {sprint.status === "PLANNING" && (
                         <button
                           onClick={() => setShowStartSprint(sprint.id)}
@@ -744,6 +773,22 @@ export default function BoardWorkspacePage() {
                           style={{ padding: "4px 10px", fontSize: 11, borderColor: "var(--success)", color: "var(--success)" }}
                         >
                           Complete Sprint
+                        </button>
+                      )}
+                      {isCurrentUserAdmin && (
+                        <button
+                          onClick={() => handleDeleteSprint(sprint.id, sprintTasks.length)}
+                          className="btn btn-outline"
+                          style={{ 
+                            padding: "4px 10px", 
+                            fontSize: 11, 
+                            borderColor: sprintTasks.length > 0 ? "var(--border-color)" : "var(--danger)", 
+                            color: sprintTasks.length > 0 ? "var(--text-tertiary)" : "var(--danger)",
+                            cursor: sprintTasks.length > 0 ? "not-allowed" : "pointer"
+                          }}
+                          title={sprintTasks.length > 0 ? "The sprint must be empty to be deleted" : "Delete Sprint"}
+                        >
+                          Delete
                         </button>
                       )}
                     </div>
