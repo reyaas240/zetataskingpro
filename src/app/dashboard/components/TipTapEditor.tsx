@@ -340,6 +340,9 @@ export default function TipTapEditor({
   const [uploadType, setUploadType] = useState<"image" | "video" | "file">("image");
   const [uploading, setUploading] = useState(false);
 
+  const editorRef = useRef<any>(null);
+  const uploadAndInsertFileRef = useRef<((file: File, type: "image" | "video" | "file") => Promise<void>) | null>(null);
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -367,7 +370,61 @@ export default function TipTapEditor({
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML());
     },
+    editorProps: {
+      handlePaste: (view, event) => {
+        const currentEditor = editorRef.current;
+        if (!currentEditor || !currentEditor.isEditable) return false;
+
+        const items = event.clipboardData?.items;
+        if (!items) return false;
+
+        let handled = false;
+        for (const item of Array.from(items)) {
+          if (item.type.startsWith("image/")) {
+            let file = item.getAsFile();
+            if (file) {
+              if (!file.name || !file.name.includes(".")) {
+                const ext = file.type.split("/")[1] || "png";
+                file = new File([file], `pasted-image-${Date.now()}.${ext}`, { type: file.type });
+              }
+              uploadAndInsertFileRef.current?.(file, "image");
+              handled = true;
+            }
+          }
+        }
+        return handled;
+      },
+      handleDrop: (view, event) => {
+        const currentEditor = editorRef.current;
+        if (!currentEditor || !currentEditor.isEditable) return false;
+
+        const files = event.dataTransfer?.files;
+        if (!files) return false;
+
+        let handled = false;
+        for (const file of Array.from(files)) {
+          if (file.type.startsWith("image/")) {
+            let fileToUpload = file;
+            if (!fileToUpload.name || !fileToUpload.name.includes(".")) {
+              const ext = fileToUpload.type.split("/")[1] || "png";
+              fileToUpload = new File([fileToUpload], `dropped-image-${Date.now()}.${ext}`, { type: fileToUpload.type });
+            }
+            uploadAndInsertFileRef.current?.(fileToUpload, "image");
+            handled = true;
+          }
+        }
+        if (handled) {
+          event.preventDefault();
+        }
+        return handled;
+      },
+    },
   });
+
+  // Set the current editor ref on every render
+  useEffect(() => {
+    editorRef.current = editor;
+  }, [editor]);
 
   // Keep content in sync with external updates
   useEffect(() => {
@@ -393,9 +450,9 @@ export default function TipTapEditor({
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !editor) return;
+  const uploadAndInsertFile = async (file: File, type: "image" | "video" | "file") => {
+    const currentEditor = editorRef.current;
+    if (!currentEditor) return;
 
     setUploading(true);
     const formData = new FormData();
@@ -409,18 +466,18 @@ export default function TipTapEditor({
 
       if (res.ok) {
         const data = await res.json();
-        editor.chain().focus();
+        currentEditor.chain().focus();
 
-        if (uploadType === "image") {
-          editor.commands.setImage({ src: data.url, alt: data.name });
-        } else if (uploadType === "video") {
-          editor.commands.insertContent({ type: "video", attrs: { src: data.url } });
+        if (type === "image") {
+          currentEditor.commands.setImage({ src: data.url, alt: data.name });
+        } else if (type === "video") {
+          currentEditor.commands.insertContent({ type: "video", attrs: { src: data.url } });
         } else {
-          editor.commands.insertContent(
+          currentEditor.commands.insertContent(
             `<a href="${data.url}" target="_blank" rel="noopener noreferrer">📎 ${data.name}</a> `
           );
         }
-        onChange(editor.getHTML());
+        onChange(currentEditor.getHTML());
       } else {
         const err = await res.json();
         alert(err.error || "Upload failed");
@@ -430,6 +487,16 @@ export default function TipTapEditor({
     } finally {
       setUploading(false);
     }
+  };
+
+  useEffect(() => {
+    uploadAndInsertFileRef.current = uploadAndInsertFile;
+  });
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await uploadAndInsertFile(file, uploadType);
   };
 
   if (!editor) return null;
