@@ -473,7 +473,10 @@ export async function DELETE(req: Request) {
 
     const task = await db.task.findUnique({
       where: { id: taskId },
-      include: { project: true },
+      include: { 
+        project: true,
+        column: true,
+      },
     });
 
     if (!task) {
@@ -494,9 +497,14 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Admins can delete any task; members can only delete tasks they are assigned to
-    if (membership.role !== "ADMIN" && task.assigneeId !== user.id) {
-      return NextResponse.json({ error: "Members can only delete their own tasks" }, { status: 403 });
+    const isAdmin = membership.role === "ADMIN";
+    const isReporter = task.reporterId === user.id;
+    const isBacklogOrTodo = task.sprintId === null || task.column.name === "To Do";
+
+    if (!isAdmin && !(isReporter && isBacklogOrTodo)) {
+      return NextResponse.json({ 
+        error: "Forbidden. Only organization admins can delete any task. Reporters can delete their own tasks if they are in the Backlog or 'To Do' status." 
+      }, { status: 403 });
     }
 
     await db.task.delete({

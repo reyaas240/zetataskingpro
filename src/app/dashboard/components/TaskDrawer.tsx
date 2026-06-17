@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { formatInTimezone } from "@/lib/timezone";
 import TipTapEditor from "./TipTapEditor";
+import { useWorkspace } from "@/app/dashboard/WorkspaceContext";
 
 interface TaskDrawerProps {
   taskId: string | null;
@@ -29,6 +30,7 @@ export default function TaskDrawer({
   projectId,
   projectCustomFields = [],
 }: TaskDrawerProps) {
+  const { user: currentUser } = useWorkspace();
   const [task, setTask] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -367,6 +369,15 @@ export default function TaskDrawer({
       default: return field.charAt(0).toUpperCase() + field.slice(1);
     }
   };
+
+  const currentColumn = boardColumns.find((col) => col.id === columnId);
+  const isBacklogOrTodo = !sprintId || (currentColumn && currentColumn.name === "To Do");
+  
+  const currentUserMember = orgMembers.find((m) => m.user.id === currentUser?.id);
+  const isCurrentUserAdmin = currentUserMember?.role === "ADMIN";
+  const isReporter = task?.reporterId === currentUser?.id;
+  
+  const canDelete = isCurrentUserAdmin || (isReporter && isBacklogOrTodo);
 
   if (!taskId) return null;
 
@@ -1002,23 +1013,28 @@ export default function TaskDrawer({
                   </div>
 
                   {/* Delete button */}
-                  <div style={{ marginTop: "auto", paddingTop: 16 }}>
-                  <button
-                      onClick={async () => {
-                        if (confirm("Are you sure you want to delete this task?")) {
-                          const res = await fetch(`/api/tasks?taskId=${taskId}`, { method: "DELETE" });
-                          if (res.ok) {
-                            onUpdate();
-                            onClose();
+                  {canDelete && (
+                    <div style={{ marginTop: "auto", paddingTop: 16 }}>
+                      <button
+                        onClick={async () => {
+                          if (confirm("Are you sure you want to delete this task?")) {
+                            const res = await fetch(`/api/tasks?taskId=${taskId}`, { method: "DELETE" });
+                            if (res.ok) {
+                              onUpdate();
+                              onClose();
+                            } else {
+                              const errorData = await res.json();
+                              alert(errorData.error || "Failed to delete task.");
+                            }
                           }
-                        }
-                      }}
-                      className="btn btn-danger"
-                      style={{ width: "100%" }}
-                    >
-                      🗑️ Delete Task
-                    </button>
-                </div>
+                        }}
+                        className="btn btn-danger"
+                        style={{ width: "100%" }}
+                      >
+                        🗑️ Delete Task
+                      </button>
+                    </div>
+                  )}
               </div>
               )}
 
