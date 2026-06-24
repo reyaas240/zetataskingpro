@@ -5,7 +5,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
-import { Node, mergeAttributes } from "@tiptap/core";
+import { Node, Mark, mergeAttributes } from "@tiptap/core";
 import Placeholder from "@tiptap/extension-placeholder";
 import { ReactNodeViewRenderer, NodeViewWrapper } from "@tiptap/react";
 
@@ -323,6 +323,55 @@ const CustomImage = Image.extend({
   },
 });
 
+// Custom text color extension using inline styles
+const ColorMark = Mark.create({
+  name: "textColor",
+
+  addAttributes() {
+    return {
+      color: {
+        default: null,
+        parseHTML: (element) => element.style.color || null,
+        renderHTML: (attributes) => {
+          if (!attributes.color) {
+            return {};
+          }
+          return { style: `color: ${attributes.color}` };
+        },
+      },
+    };
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: "span",
+        getAttrs: (element) => {
+          const hasColor = (element as HTMLElement).style.color;
+          return hasColor ? {} : false;
+        },
+      },
+    ];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return ["span", mergeAttributes(HTMLAttributes), 0];
+  },
+});
+
+const PRESET_COLORS = [
+  { name: "Default", value: "default" },
+  { name: "Slate", value: "#64748b" },
+  { name: "Red", value: "#ef4444" },
+  { name: "Orange", value: "#f97316" },
+  { name: "Amber", value: "#f59e0b" },
+  { name: "Green", value: "#10b981" },
+  { name: "Teal", value: "#14b8a6" },
+  { name: "Blue", value: "#3b82f6" },
+  { name: "Purple", value: "#8b5cf6" },
+  { name: "Pink", value: "#ec4899" },
+];
+
 interface TipTapEditorProps {
   content: string;
   onChange: (html: string) => void;
@@ -340,12 +389,29 @@ export default function TipTapEditor({
   const [uploadType, setUploadType] = useState<"image" | "video" | "file">("image");
   const [uploading, setUploading] = useState(false);
 
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const colorPickerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close color picker on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (colorPickerRef.current && !colorPickerRef.current.contains(event.target as globalThis.Node)) {
+        setShowColorPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const editorRef = useRef<any>(null);
   const uploadAndInsertFileRef = useRef<((file: File, type: "image" | "video" | "file") => Promise<void>) | null>(null);
 
   const editor = useEditor({
     extensions: [
       StarterKit,
+      ColorMark,
       CustomImage.configure({
         HTMLAttributes: {
           style: "max-width: 100%; border-radius: 8px; margin: 8px 0;",
@@ -499,6 +565,20 @@ export default function TipTapEditor({
     await uploadAndInsertFile(file, uploadType);
   };
 
+  const getActiveColor = () => {
+    return editor?.getAttributes("textColor").color || "";
+  };
+
+  const handleSetColor = (color: string) => {
+    if (!editor) return;
+    if (color === "default") {
+      editor.chain().focus().unsetMark("textColor").run();
+    } else {
+      editor.chain().focus().setMark("textColor", { color }).run();
+    }
+    setShowColorPicker(false);
+  };
+
   if (!editor) return null;
 
   return (
@@ -544,6 +624,119 @@ export default function TipTapEditor({
           >
             {"<>"}
           </button>
+
+          {/* ── Font Color Dropdown ── */}
+          <div style={{ position: "relative", display: "inline-block" }} ref={colorPickerRef}>
+            <button
+              type="button"
+              onClick={() => setShowColorPicker(!showColorPicker)}
+              className={`tiptap-btn ${editor.isActive("textColor") ? "is-active" : ""}`}
+              title="Text Color"
+              style={{ display: "flex", alignItems: "center", gap: "4px" }}
+            >
+              <span style={{ borderBottom: `2.5px solid ${getActiveColor() || "var(--text-primary)"}`, paddingBottom: "1px", fontWeight: "bold" }}>A</span>
+              <span style={{ fontSize: "8px", verticalAlign: "middle" }}>▼</span>
+            </button>
+            {showColorPicker && (
+              <div
+                className="tiptap-color-dropdown"
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  zIndex: 1000,
+                  marginTop: "4px",
+                  backgroundColor: "var(--bg-secondary)",
+                  border: "1px solid var(--border-color)",
+                  borderRadius: "var(--border-radius)",
+                  padding: "10px",
+                  boxShadow: "var(--shadow-lg)",
+                  display: "grid",
+                  gridTemplateColumns: "repeat(6, 1fr)",
+                  gap: "8px",
+                  minWidth: "190px",
+                }}
+              >
+                {/* Reset to Default swatch */}
+                <button
+                  type="button"
+                  onClick={() => handleSetColor("default")}
+                  title="Default/Inherit Color"
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    border: "1px solid var(--border-color)",
+                    backgroundColor: "transparent",
+                    position: "relative",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                  }}
+                >
+                  <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "bold" }}>A</span>
+                  <div style={{ position: "absolute", width: "100%", height: "1.5px", backgroundColor: "#ef4444", transform: "rotate(-45deg)" }} />
+                </button>
+
+                {/* Preset colors */}
+                {PRESET_COLORS.filter(c => c.value !== "default").map((preset) => (
+                  <button
+                    key={preset.value}
+                    type="button"
+                    onClick={() => handleSetColor(preset.value)}
+                    title={preset.name}
+                    style={{
+                      width: "24px",
+                      height: "24px",
+                      borderRadius: "50%",
+                      backgroundColor: preset.value,
+                      border: getActiveColor() === preset.value ? "2px solid var(--primary)" : "1px solid var(--border-color)",
+                      cursor: "pointer",
+                      boxShadow: getActiveColor() === preset.value ? "0 0 0 2px var(--bg-secondary)" : "none",
+                      transition: "transform 0.1s ease",
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.15)"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1.0)"; }}
+                  />
+                ))}
+
+                {/* Custom Color conic-gradient input wrapper */}
+                <label
+                  style={{
+                    width: "24px",
+                    height: "24px",
+                    borderRadius: "50%",
+                    background: "conic-gradient(red, yellow, lime, aqua, blue, magenta, red)",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    border: "1px solid var(--border-color)",
+                    position: "relative",
+                    overflow: "hidden",
+                    transition: "transform 0.1s ease",
+                  }}
+                  title="Custom Color"
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = "scale(1.15)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = "scale(1.0)"; }}
+                >
+                  <input
+                    type="color"
+                    value={getActiveColor() || "#3b82f6"}
+                    onChange={(e) => handleSetColor(e.target.value)}
+                    style={{
+                      position: "absolute",
+                      opacity: 0,
+                      width: "100%",
+                      height: "100%",
+                      cursor: "pointer",
+                    }}
+                  />
+                </label>
+              </div>
+            )}
+          </div>
 
           <span className="tiptap-divider" />
 

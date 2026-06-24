@@ -401,16 +401,24 @@
   flex-wrap: wrap;
 }
 
+/* Lighter background for TipTap toolbar in dark mode */
+html.dark .tiptap-toolbar {
+  background-color: #2c384e;
+}
+
 .tiptap-btn {
   background: none;
   border: 1px solid transparent;
   padding: 4px 8px;
   font-size: 12px;
   border-radius: var(--border-radius-sm);
+  color: var(--text-primary); /* Fix contrast in dark/light mode */
+  transition: all 0.2s ease;
 }
 
 .tiptap-btn:hover {
   background-color: var(--border-color);
+  color: var(--text-primary);
 }
 
 .tiptap-btn.is-active {
