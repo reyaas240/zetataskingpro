@@ -1531,6 +1531,53 @@ export default function BoardWorkspacePage() {
         </div>
       )}
 
+      {/* MODAL: EDIT SPRINT */}
+      {editingSprint && (
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <h3>✏️ Edit Sprint</h3>
+              <button className="modal-close" onClick={() => setEditingSprint(null)}>×</button>
+            </div>
+            <form onSubmit={handleEditSprintSubmit}>
+              <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div className="form-group">
+                  <label className="form-label">Sprint Name</label>
+                  <input
+                    type="text"
+                    value={editSprintName}
+                    onChange={(e) => setEditSprintName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Start Date</label>
+                  <input
+                    type="datetime-local"
+                    value={editSprintStartDate}
+                    onChange={(e) => setEditSprintStartDate(e.target.value)}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">End Date</label>
+                  <input
+                    type="datetime-local"
+                    value={editSprintEndDate}
+                    onChange={(e) => setEditSprintEndDate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-outline" onClick={() => setEditingSprint(null)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={editSprintLoading}>
+                  {editSprintLoading ? "Saving..." : "💾 Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: DELETE BOARD CONFIRMATION */}
       {showDeleteConfirm && (
         <div className="modal-overlay">
