@@ -37,8 +37,12 @@ export async function POST(req: Request) {
       },
     });
 
+    // Resolve dynamic request origin (production host or localhost)
+    const url = new URL(req.url);
+    const origin = url.origin;
+
     // Send reset email
-    const emailResult = await sendPasswordResetEmail(user.email, token);
+    const emailResult = await sendPasswordResetEmail(user.email, token, origin);
 
     // In local development, if email goes to console fallback, we return the link for easier developer testing
     const showDevFallback = process.env.NODE_ENV !== "production" && emailResult.loggedToConsole;
