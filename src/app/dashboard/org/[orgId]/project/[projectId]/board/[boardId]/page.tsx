@@ -33,6 +33,7 @@ export default function BoardWorkspacePage() {
   // Filters
   const [filterEpic, setFilterEpic] = useState("");
   const [filterAssignee, setFilterAssignee] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Selected task for drawer
@@ -72,6 +73,28 @@ export default function BoardWorkspacePage() {
   const [sprintStartDate, setSprintStartDate] = useState("");
   const [sprintEndDate, setSprintEndDate] = useState("");
   const [startSprintLoading, setStartSprintLoading] = useState(false);
+
+  // Edit Sprint states
+  const [editingSprint, setEditingSprint] = useState<any | null>(null);
+  const [editSprintName, setEditSprintName] = useState("");
+  const [editSprintStartDate, setEditSprintStartDate] = useState("");
+  const [editSprintEndDate, setEditSprintEndDate] = useState("");
+  const [editSprintLoading, setEditSprintLoading] = useState(false);
+
+  // Helper to format date-time string to local YYYY-MM-DDTHH:MM for inputs
+  const formatDateTimeLocal = (dateString: string | null | undefined) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "";
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
 
   // Board settings / Columns Edit
   const [newColName, setNewColName] = useState("");
@@ -448,6 +471,49 @@ export default function BoardWorkspacePage() {
     }
   };
 
+  // Edit Sprint
+  const handleEditSprintClick = (sprint: any) => {
+    setEditingSprint(sprint);
+    setEditSprintName(sprint.name);
+    setEditSprintStartDate(formatDateTimeLocal(sprint.startDate));
+    setEditSprintEndDate(formatDateTimeLocal(sprint.endDate));
+  };
+
+  const handleEditSprintSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSprint) return;
+    setEditSprintLoading(true);
+
+    try {
+      const res = await fetch("/api/boards/sprints", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sprintId: editingSprint.id,
+          name: editSprintName,
+          startDate: editSprintStartDate || null,
+          endDate: editSprintEndDate || null,
+        }),
+      });
+      if (res.ok) {
+        setEditingSprint(null);
+        setEditSprintName("");
+        setEditSprintStartDate("");
+        setEditSprintEndDate("");
+        fetchSprints();
+        fetchTasks();
+      } else {
+        const data = await res.json();
+        alert(data.error || "Failed to update sprint");
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert("An error occurred while updating the sprint.");
+    } finally {
+      setEditSprintLoading(false);
+    }
+  };
+
   // Complete Sprint
   const handleCompleteSprint = async (sprintId: string) => {
     if (!confirm("Complete this Sprint? Incomplete tasks will be returned to the Backlog.")) return;
@@ -544,6 +610,9 @@ export default function BoardWorkspacePage() {
       } else if (filterAssignee && t.assigneeId !== filterAssignee) {
         return false;
       }
+      if (activeTab === "backlog" && filterStatus && t.columnId !== filterStatus) {
+        return false;
+      }
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
         return (
@@ -618,6 +687,14 @@ export default function BoardWorkspacePage() {
               <option key={m.user.id} value={m.user.id}>{m.user.name}</option>
             ))}
           </select>
+          {activeTab === "backlog" && (
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="filter-select">
+              <option value="">All Statuses</option>
+              {columns.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          )}
           <input
             type="text"
             placeholder="Search by code/title..."
@@ -625,12 +702,13 @@ export default function BoardWorkspacePage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{ width: 200, padding: "4px 10px" }}
           />
-          {(filterEpic || filterAssignee || searchQuery) && (
+          {(filterEpic || filterAssignee || searchQuery || (activeTab === "backlog" && filterStatus)) && (
             <button
               onClick={() => {
                 setFilterEpic("");
                 setFilterAssignee("");
                 setSearchQuery("");
+                setFilterStatus("");
               }}
               className="btn-link"
               style={{ fontSize: 12, color: "var(--danger)", background: "none" }}
@@ -751,12 +829,24 @@ export default function BoardWorkspacePage() {
                       <span className={`badge ${sprint.status === "ACTIVE" ? "badge-success" : sprint.status === "COMPLETED" ? "badge-primary" : "badge-warning"}`} style={{ fontSize: 9 }}>
                         {sprint.status}
                       </span>
+                      {sprint.startDate && sprint.endDate && (
+                        <span className="badge" style={{ fontSize: 10, backgroundColor: "var(--bg-tertiary)", color: "var(--text-secondary)", textTransform: "none" }}>
+                          📅 {new Date(sprint.startDate).toLocaleDateString()} - {new Date(sprint.endDate).toLocaleDateString()}
+                        </span>
+                      )}
                       <span className="sprint-meta">
                         {sprintTasks.length} tasks | <strong>{totalPoints} SP</strong>
                       </span>
                     </div>
                     
                     <div className="sprint-action-buttons" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button
+                        onClick={() => handleEditSprintClick(sprint)}
+                        className="btn btn-outline"
+                        style={{ padding: "4px 10px", fontSize: 11 }}
+                      >
+                        ✏️ Edit
+                      </button>
                       {sprint.status === "PLANNING" && (
                         <button
                           onClick={() => setShowStartSprint(sprint.id)}
