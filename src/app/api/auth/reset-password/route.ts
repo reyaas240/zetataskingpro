@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     }
 
     // Find the user with this reset token
-    const user = await db.user.findUnique({
+    const user = await db.user.findFirst({
       where: { resetToken: token },
     });
 
