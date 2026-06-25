@@ -204,3 +204,54 @@ export async function sendTaskAssignmentEmail(
     return { success: true, loggedToConsole: true };
   }
 }
+
+export async function sendPasswordResetEmail(
+  email: string,
+  token: string,
+  baseUrl?: string
+): Promise<{ success: boolean; loggedToConsole: boolean }> {
+  const origin = baseUrl || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:6001";
+  const resetUrl = `${origin}/reset-password?token=${token}`;
+  
+  console.log(`[DEVELOPER MODE - PASSWORD RESET DISPATCH] email=${email} resetUrl=${resetUrl}`);
+  
+  const mailDetails = await getTransporter();
+  if (!mailDetails) {
+    console.log(`\n==================================================`);
+    console.log(`📨 [PASSWORD RESET LOCAL FALLBACK]`);
+    console.log(`To: ${email}`);
+    console.log(`Reset Link: ${resetUrl}`);
+    console.log(`==================================================\n`);
+    return { success: true, loggedToConsole: true };
+  }
+
+  try {
+    const { transporter, from } = mailDetails;
+    await transporter.sendMail({
+      from,
+      to: email,
+      subject: `[Zeta TaskingPro] Reset Your Password`,
+      text: `You have requested to reset your password. Click the link below to set a new password:\n\n${resetUrl}\n\nThis link is valid for 1 hour.`,
+      html: `
+        <div style="font-family: sans-serif; padding: 20px; color: #333; line-height: 1.6;">
+          <h2>Zeta TaskingPro</h2>
+          <p>You have requested to reset your password. Click the link below to set a new password:</p>
+          <a href="${resetUrl}" style="display: inline-block; padding: 10px 20px; background-color: #2563eb; color: #fff; text-decoration: none; border-radius: 5px; font-weight: bold; margin: 10px 0;">
+            Reset Password
+          </a>
+          <p>This link is valid for 1 hour. If you did not request this, you can ignore this email.</p>
+        </div>
+      `,
+    });
+    return { success: true, loggedToConsole: false };
+  } catch (error) {
+    console.error("Nodemailer failed to send password reset email, falling back to console:", error);
+    console.log(`\n==================================================`);
+    console.log(`📨 [PASSWORD RESET LOCAL FALLBACK - SEND FAIL ERROR]`);
+    console.log(`To: ${email}`);
+    console.log(`Reset Link: ${resetUrl}`);
+    console.log(`==================================================\n`);
+    return { success: true, loggedToConsole: true };
+  }
+}
+
