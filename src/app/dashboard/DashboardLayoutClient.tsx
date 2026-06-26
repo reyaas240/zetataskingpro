@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from "react";
 import { useWorkspace } from "./WorkspaceContext";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { COMMON_TIMEZONES } from "@/lib/timezone";
 import "./dashboard.css";
 
 export default function DashboardLayoutClient({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, organizations, selectedOrg, setSelectedOrg, refreshOrgs, loading } = useWorkspace();
 
   // Dropdown states
@@ -399,11 +400,14 @@ export default function DashboardLayoutClient({ children }: { children: React.Re
             <div>
               <span className="nav-group-title">Overview</span>
               <nav className="nav-list">
-                <Link href="/dashboard" className="nav-item">
+                <Link href="/dashboard" className={`nav-item ${pathname === "/dashboard" ? "active" : ""}`}>
                   📊 Dashboard Overview
                 </Link>
                 {selectedOrg?.role === "ADMIN" && (
-                  <Link href={`/dashboard/org/${selectedOrg.id}/settings`} className="nav-item">
+                  <Link 
+                    href={`/dashboard/org/${selectedOrg.id}/settings`} 
+                    className={`nav-item ${pathname === `/dashboard/org/${selectedOrg.id}/settings` ? "active" : ""}`}
+                  >
                     ⚙️ Org Settings
                   </Link>
                 )}
@@ -450,16 +454,20 @@ export default function DashboardLayoutClient({ children }: { children: React.Re
                         {proj.boards?.length === 0 ? (
                           <span style={{ fontSize: 11, color: "var(--text-tertiary)", paddingLeft: 12 }}>No boards</span>
                         ) : (
-                          proj.boards?.map((b: any) => (
-                            <Link
-                              key={b.id}
-                              href={`/dashboard/org/${selectedOrg.id}/project/${proj.id}/board/${b.id}`}
-                              className="nav-item"
-                              style={{ padding: "4px 8px", fontSize: 12 }}
-                            >
-                              📋 {b.name}
-                            </Link>
-                          ))
+                          proj.boards?.map((b: any) => {
+                            const boardPath = `/dashboard/org/${selectedOrg.id}/project/${proj.id}/board/${b.id}`;
+                            const isBoardActive = pathname === boardPath;
+                            return (
+                              <Link
+                                key={b.id}
+                                href={boardPath}
+                                className={`nav-item ${isBoardActive ? "active" : ""}`}
+                                style={{ padding: "4px 8px", fontSize: 12 }}
+                              >
+                                📋 {b.name}
+                              </Link>
+                            );
+                          })
                         )}
                       </div>
                     </div>
