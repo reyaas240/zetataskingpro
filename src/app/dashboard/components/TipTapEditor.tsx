@@ -377,6 +377,7 @@ interface TipTapEditorProps {
   onChange: (html: string) => void;
   editable?: boolean;
   placeholder?: string;
+  compact?: boolean;
 }
 
 export default function TipTapEditor({
@@ -384,6 +385,7 @@ export default function TipTapEditor({
   onChange,
   editable = true,
   placeholder = "Start writing a description... Use the toolbar to format, add images, videos or attach files.",
+  compact = false,
 }: TipTapEditorProps) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadType, setUploadType] = useState<"image" | "video" | "file">("image");
@@ -582,7 +584,7 @@ export default function TipTapEditor({
   if (!editor) return null;
 
   return (
-    <div className="tiptap-editor-container">
+    <div className={`tiptap-editor-container${compact ? " tiptap-compact" : ""}`}>
       {editable && (
         <div className="tiptap-toolbar">
           {/* ── Text Formatting ── */}
@@ -740,8 +742,8 @@ export default function TipTapEditor({
 
           <span className="tiptap-divider" />
 
-          {/* ── Headings ── */}
-          {([1, 2, 3] as const).map((level) => (
+          {/* ── Headings (hidden in compact mode) ── */}
+          {!compact && ([1, 2, 3] as const).map((level) => (
             <button
               key={level}
               type="button"
@@ -753,7 +755,7 @@ export default function TipTapEditor({
             </button>
           ))}
 
-          <span className="tiptap-divider" />
+          {!compact && <span className="tiptap-divider" />}
 
           {/* ── Lists & Blocks ── */}
           <button

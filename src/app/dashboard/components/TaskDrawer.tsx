@@ -60,6 +60,7 @@ export default function TaskDrawer({
 
   // Comments state
   const [commentContent, setCommentContent] = useState("");
+  const [commentEditorKey, setCommentEditorKey] = useState(0);
   const [commentLoading, setCommentLoading] = useState(false);
   const [activityTab, setActivityTab] = useState<"comments" | "history">("comments");
 
@@ -251,10 +252,15 @@ export default function TaskDrawer({
     }
   };
 
+  // Helper: check if TipTap HTML output is empty (e.g. just "<p></p>")
+  const isCommentEmpty = (html: string) => {
+    const stripped = html.replace(/<[^>]*>/g, "").trim();
+    return stripped.length === 0;
+  };
+
   // Create comment
-  const handleAddComment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!commentContent.trim() || !taskId) return;
+  const handleAddComment = async () => {
+    if (isCommentEmpty(commentContent) || !taskId) return;
 
     setCommentLoading(true);
     try {
@@ -269,6 +275,8 @@ export default function TaskDrawer({
 
       if (res.ok) {
         setCommentContent("");
+        // Increment key to reset the editor
+        setCommentEditorKey((k) => k + 1);
         fetchTaskDetails();
       }
     } catch (e) {
@@ -689,23 +697,26 @@ export default function TaskDrawer({
                   </div>
 
                   {activityTab === "comments" && (
-                    <form onSubmit={handleAddComment} className="comment-input-area" style={{ marginBottom: 24 }}>
-                      <textarea
-                        value={commentContent}
-                        onChange={(e) => setCommentContent(e.target.value)}
-                        placeholder="Add a comment..."
-                        rows={2}
-                        required
-                      ></textarea>
+                    <div className="comment-input-area" style={{ marginBottom: 24 }}>
+                      <div className="comment-editor-wrap">
+                        <TipTapEditor
+                          key={commentEditorKey}
+                          content={commentContent}
+                          onChange={(html) => setCommentContent(html)}
+                          placeholder="Add a comment... Use the toolbar to format, add images or embed videos."
+                          compact
+                        />
+                      </div>
                       <button
-                        type="submit"
+                        type="button"
                         className="btn btn-primary"
                         style={{ alignSelf: "flex-end", padding: "6px 16px", fontSize: 12 }}
-                        disabled={commentLoading}
+                        disabled={commentLoading || isCommentEmpty(commentContent)}
+                        onClick={handleAddComment}
                       >
                         {commentLoading ? "Adding..." : "Comment"}
                       </button>
-                    </form>
+                    </div>
                   )}
 
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -717,7 +728,11 @@ export default function TaskDrawer({
                             <strong style={{ color: "var(--text-primary)" }}>{item.user.name}</strong>
                             <span>{formatInTimezone(item.createdAt, orgTimezone)}</span>
                           </div>
-                          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{item.content}</div>
+                          <div
+                            className="comment-rich-content tiptap-content"
+                            dangerouslySetInnerHTML={{ __html: item.content }}
+                            style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}
+                          />
                         </div>
                       ))
                     }

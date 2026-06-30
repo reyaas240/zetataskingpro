@@ -47,6 +47,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Content and Task ID are required" }, { status: 400 });
     }
 
+    // Strip HTML tags to check for truly empty rich-text content (e.g. "<p></p>")
+    const textContent = content.replace(/<[^>]*>/g, "").trim();
+    if (!textContent) {
+      return NextResponse.json({ error: "Comment content cannot be empty" }, { status: 400 });
+    }
+
     // Verify task exists
     const task = await db.task.findUnique({
       where: { id: taskId },
@@ -88,7 +94,7 @@ export async function POST(req: Request) {
       await createNotification({
         userId: task.assigneeId,
         title: "New Comment",
-        message: `${user.name} commented on task ${task.code}: "${content.length > 50 ? content.substring(0, 50) + '...' : content}"`,
+        message: `${user.name} commented on task ${task.code}: "${textContent.length > 50 ? textContent.substring(0, 50) + '...' : textContent}"`,
         taskId: task.id,
       });
     }
@@ -98,7 +104,7 @@ export async function POST(req: Request) {
       await createNotification({
         userId: task.reporterId,
         title: "New Comment",
-        message: `${user.name} commented on task ${task.code}: "${content.length > 50 ? content.substring(0, 50) + '...' : content}"`,
+        message: `${user.name} commented on task ${task.code}: "${textContent.length > 50 ? textContent.substring(0, 50) + '...' : textContent}"`,
         taskId: task.id,
       });
     }
